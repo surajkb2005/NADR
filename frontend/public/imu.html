@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StellarRoute Mobile IMU</title>
+
+  <style>
+    body {
+      background: #0b0b0b;
+      color: #e5e5e5;
+      font-family: system-ui;
+      padding: 12px;
+    }
+
+    button {
+      width: 100%;
+      padding: 22px;
+      font-size: 1.6rem;
+      margin: 8px 0;
+      border: none;
+      border-radius: 14px;
+      font-weight: bold;
+    }
+
+    #permBtn {
+      background: #2563eb;
+      color: white;
+    }
+
+    .btn-inc {
+      background: #22c55e;
+    }
+
+    .btn-dec {
+      background: #ef4444;
+    }
+
+    .val {
+      color: #4ade80;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>🛰️ StellarRoute Mobile IMU</h2>
+
+  <button id="permBtn">ENABLE SENSORS</button>
+
+  <div>Status: <span id="status" class="val">DISCONNECTED</span></div>
+  <div>Heading: <span id="heading" class="val">0</span>°</div>
+  <div>Gyro α: <span id="ga" class="val">0</span></div>
+  <div>Gyro β: <span id="gb" class="val">0</span></div>
+  <div>Gyro γ: <span id="gc" class="val">0</span></div>
+
+  <h2>SPEED: <span id="speedVal">0</span>%</h2>
+
+  <button class="btn-inc">⬆ SPEED UP</button>
+  <button class="btn-dec">⬇ SLOW DOWN</button>
+
+  <script>
+    const userId = "test123"; //localStorage.getItem("client_id") || crypto.randomUUID();
+    localStorage.setItem("client_id", userId);
+
+    // Automatically detect if the connection is HTTPS and use WSS, otherwise WS
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // Automatically use the current host (works for localhost, IPs, and Tunnel domains)
+    // Grab the hostname (e.g., localhost or your IP) but force the backend port 8000
+    const hostname = window.location.hostname;
+    const ws = new WebSocket(`${protocol}//${hostname}:8000/ws/imu?client_id=${userId}`);
+
+    ws.onopen = () => {
+      console.log("IMU connected");
+      document.getElementById("status").innerText = "CONNECTED";
+    };
+
+    ws.onclose = () => {
+      document.getElementById("status").innerText = "DISCONNECTED";
+    };
+
+    /* STATE */
+    let state = {
+      speed: 0,
+      heading: 0,
+      accel: { x: 0, y: 0, z: 0 },
+      gyro: { alpha: 0, beta: 0, gamma: 0 }
+    };
+
+    const headingEl = document.getElementById("heading");
+    const ga = document.getElementById("ga");
+    const gb = document.getElementById("gb");
+    const gc = document.getElementById("gc");
+    const speedVal = document.getElementById("speedVal");
+
+    /* SENSOR ENABLE */
+    document.getElementById("permBtn").onclick = async () => {
+      try {
+        if (typeof DeviceMotionEvent.requestPermission === "function") {
+          const res1 = await DeviceMotionEvent.requestPermission();
+          const res2 = await DeviceOrientationEvent.requestPermission();
+          console.log(res1, res2);
+        }
+      } catch (err) {
+        console.log("Permission error:", err);
+      }
+
+      startSensors();
+    };
+
+    function startSensors() {
+      window.addEventListener("deviceorientation", e => {
+        state.gyro = {
+          alpha: +(e.alpha || 0).toFixed(2),
+          beta: +(e.beta || 0).toFixed(2),
+          gamma: +(e.gamma || 0).toFixed(2)
+        };
+
+        state.heading = Math.round(e.alpha || 0);
+
+        headingEl.innerText = state.heading;
+        ga.innerText = state.gyro.alpha;
+        gb.innerText = state.gyro.beta;
+        gc.innerText = state.gyro.gamma;
+      });
+
+      window.addEventListener("devicemotion", e => {
+        if (e.accelerationIncludingGravity) {
+          state.accel = {
+            x: +(e.accelerationIncludingGravity.x || 0).toFixed(2),
+            y: +(e.accelerationIncludingGravity.y || 0).toFixed(2),
+            z: +(e.accelerationIncludingGravity.z || 0).toFixed(2)
+          };
+        }
+      });
+    }
+
+    /* SPEED CONTROL */
+    document.querySelector(".btn-inc").onclick = () => updateSpeed(10);
+    document.querySelector(".btn-dec").onclick = () => updateSpeed(-10);
+
+    function updateSpeed(v) {
+      state.speed = Math.max(0, Math.min(100, state.speed + v));
+      speedVal.innerText = state.speed;
+    }
+
+    /* SEND DATA */
+    setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: "imu_update",
+          ...state,
+          timestamp: Date.now()
+        }));
+      }
+    }, 200);
+  </script>
+
+</body>
+
+</html>

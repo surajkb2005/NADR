@@ -1,0 +1,197 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl;
+  }
+  
+  .risk-indicator-low {
+    @apply bg-risk-low/20 text-risk-low border border-risk-low/30;
+  }
+  
+  .risk-indicator-medium {
+    @apply bg-risk-medium/20 text-risk-medium border border-risk-medium/30;
+  }
+  
+  .risk-indicator-high {
+    @apply bg-risk-high/20 text-risk-high border border-risk-high/30;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors font-medium;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-primary border border-primary px-4 py-2 rounded-lg hover:bg-primary/10 transition-colors font-medium;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-fade-out {
+  animation: fade-out 0.3s ease-out forwards;
+}
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Utility classes */
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-ping {
+  animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+}
+
+/* Risk level colors */
+.bg-risk-low {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.bg-risk-medium {
+  background-color: rgba(255, 193, 7, 0.1);
+}
+
+.bg-risk-high {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+.text-risk-low {
+  color: #4CAF50;
+}
+
+.text-risk-medium {
+  color: #FFC107;
+}
+
+.text-risk-high {
+  color: #F44336;
+}
+
+
+
+/* Add these at the end of your CSS file */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse {
+  animation: pulse 1s infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 2s linear infinite;
+}
+
+
+/* CHAOS MODE ANIMATIONS */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+@keyframes glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(-2px, -2px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(2px, -2px); }
+  100% { transform: translate(0); }
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes flash {
+  0%, 50%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0.3; }
+}
+
+.animate-shake { animation: shake 0.5s infinite; }
+.animate-glitch { animation: glitch 0.3s infinite; }
+.animate-pulse-red { animation: pulse-red 1s infinite; }
+.animate-flash { animation: flash 0.8s infinite; }
+
+.chaos-filter {
+  filter: sepia(0.5) hue-rotate(-10deg) saturate(1.5);
+}

@@ -1,0 +1,40 @@
+export const errorMessages = [
+  "GPS SIGNAL LOST: Solar interference detected",
+  "SYSTEM ERROR: Satellite network compromised",
+  "WARNING: Geomagnetic storm in progress",
+  "CRITICAL: IMU calibration failing",
+  "ALERT: Radiation levels exceeding safety limits",
+  "ERROR: Navigation system offline",
+  "WARNING: Solar flare impacting communications",
+  "SYSTEM CORRUPTION: Rebooting recommended",
+  "ALERT: Space weather advisory in effect",
+  "ERROR: Unable to contact ground control",
+  "WARNING: The sun is ANGRY today!",
+  "CRITICAL: Hackathon judges watching intently!",
+  "PANIC: Solar particles everywhere!",
+  "ERROR: GPS offended by space weather",
+  "WARNING: Navigation accuracy compromised",
+  "ALERT: Recommend emergency landing",
+  "SYSTEM: Just kidding, everything is fine... or is it?",
+  "ERROR: Too much awesomeness detected",
+  "WARNING: Demo exceeding expectations",
+  "CRITICAL: Need more coffee to handle this chaos"
+];
+
+export const newsTickerMessages = [
+  "BREAKING: Solar storm threatens GPS systems worldwide",
+  "ALERT: NASA reports largest solar flare in decades",
+  "EMERGENCY: Satellite communications disrupted globally",
+  "WARNING: Navigation systems failing across continents",
+  "UPDATE: Space weather alert level raised to EXTREME",
+  "URGENT: All vehicles advised to use backup navigation",
+  "BREAKING: Sun emits massive coronal mass ejection",
+  "ALERT: Geomagnetic storm causing widespread outages",
+  "EMERGENCY: Hackathon projects at risk from solar radiation",
+  "WARNING: The sky is literally falling (just kidding... maybe)",
+  "UPDATE: StellarRoute remains functional despite chaos",
+  "URGENT: Judges impressed by chaotic UI implementation",
+  "BREAKING: This demo is too awesome for conventional GPS",
+  "ALERT: System handling pressure like a champion",
+  "EMERGENCY: Need to announce winners before sun explodes"
+];

@@ -1,0 +1,48 @@
+{
+  "info": {
+    "name": "StellarRoute API Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8000/health"
+      }
+    },
+    {
+      "name": "Current Space Weather",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/space-weather/current?latitude=12.97&longitude=77.59",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["space-weather", "current"],
+          "query": [
+            { "key": "latitude", "value": "12.97" },
+            { "key": "longitude", "value": "77.59" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Calculate Route",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"start\":[12.9716,77.5946],\"end\":[19.0760,72.8777],\"mode\":\"normal\"}"
+        },
+        "url": "http://localhost:8000/route"
+      }
+    }
+  ]
+}

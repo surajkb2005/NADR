@@ -1,0 +1,119 @@
+name: Code Quality Checks
+
+on:
+  push:
+    branches: [ "main", "Production" ]
+  pull_request:
+    branches: [ "main", "Production" ]
+
+jobs:
+  # JOB 1: CHECK FRONTEND (React/Vite)
+  frontend-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Security Audit
+      run: npm audit --audit-level=high
+
+    - name: Run Linter
+      run: npx eslint .
+
+    - name: Build Check
+      run: npm run build
+
+  # JOB 2: CHECK BACKEND (Python/Navigation Logic)
+  backend-checks:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+          
+    defaults:
+      run:
+        working-directory: ./backend
+    env:
+      BACKEND_URL: http://localhost:8000
+      REDIS_URL: redis://localhost:6379
+      SECRET_KEY: "ci-test-key-for-stellar-route-verification-only"
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install flake8 black pytest requests
+
+    - name: Install pip-audit
+      run: pip install pip-audit
+
+    - name: Run Dependency Security Scan
+      run: pip-audit --ignore-vuln CVE-2025-71176 --ignore-vuln CVE-2025-54121 --ignore-vuln CVE-2025-62727 --ignore-vuln PYSEC-2023-228 --ignore-vuln CVE-2025-8869 --ignore-vuln CVE-2026-1703 --ignore-vuln CVE-2026-3219 --ignore-vuln PYSEC-2022-43012 --ignore-vuln PYSEC-2025-49 --ignore-vuln CVE-2024-6345
+
+    - name: Run Formatter Check
+      run: black --check .
+
+    - name: Run Linter
+      run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+    - name: Wait for Redis
+      run: |
+        sleep 3
+
+    - name: Start Backend
+      run: |
+        nohup python run.py > backend.log 2>&1 &
+
+    - name: Wait for Backend
+      run: |
+        for i in {1..10}; do
+          if curl --fail "$BACKEND_URL/space-weather/current?latitude=12.97&longitude=77.59"; then
+            echo "Backend is up"
+            exit 0
+          fi
+          echo "Waiting for backend..."
+          sleep 3
+        done
+        echo "Backend failed to start"
+        cat backend.log
+        exit 1
+
+    - name: Run API Tests
+      run: pytest tests/
+
+    - name: Set up Node.js (for Newman)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Install Newman
+      run: npm install -g newman
+
+    - name: Run Postman Collection Tests
+      run: newman run tests/postman_collection.json

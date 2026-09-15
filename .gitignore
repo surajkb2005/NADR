@@ -1,0 +1,70 @@
+node_modules/*
+node_modules/
+venv/*
+venv/
+.env
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+__pycache__
+
+algorithms/
+algorithms/*
+backend/algorithms
+LaptopTesting/*
+LaptopTesting/
+<<<<<<< HEAD
+=======
+*.pem
+*.env
+
+# Terraform working directory
+.terraform/
+
+# State files (contain real infra + secrets)
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+
+# Sensitive variable files
+*.tfvars
+*.tfvars.json
+
+# CLI config files (may contain credentials)
+.terraformrc
+terraform.rc
+
+# Override files (local-only hacks)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Lock file (depends, see below)
+.terraform.lock.hcl
+>>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
+MobileRemote/
+mobilesensorss/
