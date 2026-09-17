@@ -1,4 +1,4 @@
-# 🌟 StellarRoute: Space-Weather Aware Navigation System
+# 🌟 NADR: Space-Weather Aware Navigation System
 
 **Navigation that survives solar storms.** StellarRoute predicts GPS degradation from solar activity and provides continuous navigation through intelligent rerouting and sensor-fusion fallback.
 

@@ -519,8 +519,8 @@ function App() {
                 <Navigation2 className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">StellarRoute</h1>
-                <p className="text-sm text-gray-600">Space-weather aware navigation system</p>
+                <h1 className="text-2xl font-bold text-gray-900">NADR -  Neuro Adaptive Dead Reckoning</h1>
+                <p className="text-sm text-gray-600">IMU Navigation system during GPS outages</p>
               </div>
             </div>
 
@@ -682,7 +682,7 @@ function App() {
 
       <footer className="mt-8 border-t bg-white py-6">
         <div className="container mx-auto px-4 text-center text-gray-600">
-          <p className="font-medium">StellarRoute - Hackathon Project</p>
+          <p className="font-medium">NADR - Project</p>
         </div>
       </footer>
 

@@ -8,7 +8,7 @@ load_dotenv()
 
 class Settings:
     # Application
-    APP_NAME: str = "StellarRoute API"
+    APP_NAME: str = "NADR API"
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
 
     # Server

@@ -1,4 +1,4 @@
-//StellarRoute\frontend\src\components\LoginModal.jsx
+//NADR\frontend\src\components\LoginModal.jsx
 
 import React, { useState } from 'react';
 import { X, Mail, Check, AlertTriangle, Loader2 } from 'lucide-react';

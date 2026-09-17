@@ -15,10 +15,10 @@ if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler(), logging.FileHandler("stellarroute.log")],
+        handlers=[logging.StreamHandler(), logging.FileHandler("NADR.log")],
     )
     logger = logging.getLogger(__name__)
-    logger.info("Starting StellarRoute backend server...")
+    logger.info("Starting NADR backend server...")
 
     uvicorn.run(
         "app.main:app",

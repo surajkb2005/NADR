@@ -83,8 +83,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="StellarRoute API",
-    description="Space-weather aware navigation system with GPS failure resilience",
+    title="NADR - Neuro Adaptive Dead Reckoning",
+    description="GPS Denied IMU Navigation system",
     version="2.0.0",
 )
 
@@ -218,9 +218,9 @@ def send_email_otp(email: EmailStr, otp: str) -> bool:
         logger.error("Email configuration missing. Cannot send email.")
         return False
 
-    email_body = f"""Dear User,\n\nYour StellarRoute verification code (OTP) is:\n---\n{otp}\n---\n\nThis code is valid for 5 minutes.\n\nThank you,\nThe StellarRoute Team"""
+    email_body = f"""Dear User,\n\nYour NADR verification code (OTP) is:\n---\n{otp}\n---\n\nThis code is valid for 5 minutes.\n\nThank you,\nThe NADR Team"""
     msg = MIMEText(email_body, "plain", "utf-8")
-    msg["Subject"] = "StellarRoute: Your Login Code"
+    msg["Subject"] = "NADR: Your Login Code"
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = email
 
@@ -325,7 +325,7 @@ async def logout(response: Response):
 
 @app.get("/")
 async def root():
-    return {"message": "StellarRoute API v2.0", "status": "operational"}
+    return {"message": "NADR API v2.0", "status": "operational"}
 
 
 @app.get("/space-weather/current", response_model=SpaceWeatherData)
