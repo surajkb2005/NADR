@@ -19,7 +19,7 @@ class Settings:
     # Example: CORS_ORIGINS=http://localhost:3000,http://localhost:5173,https://yourdomain.com
     CORS_ORIGINS: List[str] = os.getenv(
         "CORS_ORIGINS",
-        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://10.20.16.196,http://10.20.16.196:5173",
     ).split(",")
 
     # Redis
@@ -44,8 +44,6 @@ class Settings:
 
 
 settings = Settings()
-<<<<<<< HEAD
-=======
 
 # Security validation – must be done after settings is instantiated
 if (
@@ -53,4 +51,3 @@ if (
     or len(settings.SECRET_KEY) < 16
 ):
     raise ValueError("SECRET_KEY is insecure! Set a strong secret in the environment.")
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523

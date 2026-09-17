@@ -9,20 +9,17 @@ import { stellarRouteAPI } from './services/api'
 import { GPSSimulator, VehicleAnimator, IMUNavigator } from './utils/simulation'
 import { DEMO_COORDINATES } from './utils/constants'
 import LoginModal from './components/LoginModal';
-<<<<<<< HEAD
 import './styles/chaosEffects.css'; // We'll create this file
 import { audioManager } from './utils/audioManager';
 
-// --- FIREBASE IMPORTS ---
-import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue } from "firebase/database";
-import { firebaseConfig } from './firebaseConfig';
+// // --- FIREBASE IMPORTS ---
+// import { initializeApp } from "firebase/app";
+// import { getDatabase, ref, onValue } from "firebase/database";
+// import { firebaseConfig } from './firebaseConfig';
 
-// Initialize Firebase
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getDatabase(firebaseApp);
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
+// // Initialize Firebase
+// const firebaseApp = initializeApp(firebaseConfig);
+// const db = getDatabase(firebaseApp);
 
 import { BASE_URL } from './config';
 
@@ -81,19 +78,13 @@ function App() {
     const verifySession = async () => {
       try {
         const response = await stellarRouteAPI.checkAuthStatus();
-<<<<<<< HEAD
 
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
         if (response.data.status === 'authenticated') {
           setIsLoggedIn(true);
           const emailName = response.data.user_email.split('@')[0];
           setUserName(emailName);
-<<<<<<< HEAD
 
           // Sync safe display data to localStorage
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
           localStorage.setItem('stellar_isLoggedIn', 'true');
           localStorage.setItem('stellar_userName', emailName);
         }
@@ -113,12 +104,12 @@ function App() {
   useEffect(() => {
     if (!realTimeMode) return;
 
-    const userId = "test123";
+    const userId = crypto.randomUUID();
     localStorage.setItem("client_id", userId);
 
     // Dynamically get API WS URL based on env or hostname
-    const apiBase = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
-    const wsBaseUrl = apiBase.replace(/^http/, 'ws').replace(/\/api$/, '');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsBaseUrl = `${wsProtocol}//${window.location.host}`;
 
     const mapWs = new WebSocket(`${wsBaseUrl}/ws/map?client_id=${userId}`);
     const imuWs = new WebSocket(`${wsBaseUrl}/ws/imu?client_id=${userId}`);
@@ -265,42 +256,6 @@ function App() {
     };
   }
 
-<<<<<<< HEAD
-  // --- FIREBASE LISTENER ---
-  useEffect(() => {
-    if (realTimeMode) {
-      console.log("📡 Subscribing to Firebase vehicle_control...");
-      const sensorRef = ref(db, 'vehicle_control');
-
-      const unsubscribe = onValue(sensorRef, (snapshot) => {
-        const data = snapshot.val();
-
-        if (data && lastPositionRef.current) {
-          const newPos = calculateNewPosition(
-            lastPositionRef.current[0],
-            lastPositionRef.current[1],
-            data,
-            lastSensorTime
-          );
-
-          setLastSensorTime(newPos.timestamp);
-          setVehiclePosition([newPos.lat, newPos.lon]);
-          lastPositionRef.current = [newPos.lat, newPos.lon];
-
-          setDriftPath(prev => {
-            const newPath = [...prev, [newPos.lat, newPos.lon]];
-            if (newPath.length > 500) return newPath.slice(newPath.length - 500);
-            return newPath;
-          });
-        }
-      });
-
-      return () => unsubscribe();
-    }
-  }, [realTimeMode, lastSensorTime]);
-
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
   // --- AUTHENTICATION HANDLERS ---
   const handleLoginSuccess = (userDisplayName) => {
     setIsLoggedIn(true);
@@ -340,24 +295,12 @@ function App() {
 
       let boundsToUse = mapBounds;
       if (!boundsToUse) {
-<<<<<<< HEAD
-        const lat = mapCenter[0];
-        const lon = mapCenter[1];
-        boundsToUse = {
-          _northEast: { lat: lat + 0.1, lng: lon + 0.1 },
-          _southWest: { lat: lat - 0.1, lng: lon - 0.1 }
-        };
-      }
-      fetchHeatmap(boundsToUse);
-
-=======
         boundsToUse = {
           _northEast: { lat: mapCenter[0] + 0.1, lng: mapCenter[1] + 0.1 },
           _southWest: { lat: mapCenter[0] - 0.1, lng: mapCenter[1] - 0.1 }
         };
       }
       fetchHeatmap(boundsToUse);
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
     } catch (error) {
       console.error('Error fetching space weather:', error)
     } finally {
@@ -370,29 +313,6 @@ function App() {
       if (!bounds) return;
       let north, south, east, west;
       if (bounds._northEast && bounds._southWest) {
-<<<<<<< HEAD
-        north = bounds._northEast.lat;
-        south = bounds._southWest.lat;
-        east = bounds._northEast.lng;
-        west = bounds._southWest.lng;
-      }
-      else if (typeof bounds.getNorth === 'function') {
-        north = bounds.getNorth();
-        south = bounds.getSouth();
-        east = bounds.getEast();
-        west = bounds.getWest();
-      }
-
-      if (isNaN(north)) return;
-
-      const bboxList = [
-        parseFloat(west),
-        parseFloat(south),
-        parseFloat(east),
-        parseFloat(north)
-      ];
-
-=======
         north = bounds._northEast.lat; south = bounds._southWest.lat;
         east = bounds._northEast.lng; west = bounds._southWest.lng;
       }
@@ -403,7 +323,6 @@ function App() {
 
       if (isNaN(north)) return;
       const bboxList = [parseFloat(west), parseFloat(south), parseFloat(east), parseFloat(north)];
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
       const response = await stellarRouteAPI.getHeatmap(bboxList);
       setHeatmapData(response.data);
     } catch (error) {
@@ -441,10 +360,6 @@ function App() {
           calculateIMUPath(start, end);
         }
       }
-<<<<<<< HEAD
-
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
     } catch (error) {
       console.error('Error calculating route:', error)
     } finally {
@@ -469,14 +384,7 @@ function App() {
       const response = await stellarRouteAPI.simulateStorm(scenario, mapCenter[0], mapCenter[1])
       setSpaceWeather(response.data)
       setSimulationMode(true)
-<<<<<<< HEAD
-
-      if (startPoint && endPoint) {
-        calculateRoute(startPoint, endPoint, currentRouteMode)
-      }
-=======
       if (startPoint && endPoint) calculateRoute(startPoint, endPoint, currentRouteMode)
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
     } catch (error) { console.error(error); setLoading(false) }
   }
 
@@ -493,10 +401,6 @@ function App() {
   // --- MAP INTERACTION ---
   const handleMapClick = (coords) => {
     if (!activePointType) return;
-<<<<<<< HEAD
-
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
     if (activePointType === 'start') {
       setStartPoint(coords)
       setVehiclePosition(coords)
@@ -516,25 +420,10 @@ function App() {
 
   const findClosestPathIndex = (position, path) => {
     if (!position || !path || path.length === 0) return 0
-<<<<<<< HEAD
-    let minDist = Infinity
-    let closestIndex = 0
-
-    path.forEach((point, index) => {
-      const dist = Math.sqrt(
-        Math.pow(point[0] - position[0], 2) +
-        Math.pow(point[1] - position[1], 2)
-      )
-      if (dist < minDist) {
-        minDist = dist
-        closestIndex = index
-      }
-=======
     let minDist = Infinity; let closestIndex = 0
     path.forEach((point, index) => {
       const dist = Math.sqrt(Math.pow(point[0] - position[0], 2) + Math.pow(point[1] - position[1], 2))
       if (dist < minDist) { minDist = dist; closestIndex = index }
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
     })
     return closestIndex
   }
@@ -554,12 +443,7 @@ function App() {
       const targetPath = imuPath.length > 0 ? imuPath : (routes.safe?.path || routes.normal?.path || []);
       if (targetPath.length > 0) {
         const closestIndex = findClosestPathIndex(currentPos, targetPath);
-<<<<<<< HEAD
-        const remainingPath = targetPath.slice(closestIndex);
-        imuNavigatorRef.current = new VehicleAnimator(remainingPath);
-=======
         imuNavigatorRef.current = new VehicleAnimator(targetPath.slice(closestIndex));
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
       }
       setUseIMUNavigation(true);
     } else {
@@ -569,12 +453,7 @@ function App() {
       }
       if (targetPath.length > 0) {
         const closestIndex = findClosestPathIndex(currentPos, targetPath);
-<<<<<<< HEAD
-        const remainingPath = targetPath.slice(closestIndex);
-        vehicleAnimatorRef.current = new VehicleAnimator(remainingPath);
-=======
         vehicleAnimatorRef.current = new VehicleAnimator(targetPath.slice(closestIndex));
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
       }
       if (gpsSimulatorRef.current) gpsSimulatorRef.current.restoreGPS();
       setUseIMUNavigation(false);
@@ -582,14 +461,7 @@ function App() {
     }
   };
 
-<<<<<<< HEAD
-  const handleGPSFailureToggle = () => {
-    const newMode = gpsActive ? 'safe' : 'normal';
-    toggleSystemMode(newMode);
-  };
-=======
   const handleGPSFailureToggle = () => toggleSystemMode(gpsActive ? 'safe' : 'normal');
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
 
   const toggleRealTimeMode = () => {
     const newState = !realTimeMode;
@@ -599,13 +471,8 @@ function App() {
       setGPSActive(false);
       setUseIMUNavigation(true);
       setDriftPath([]);
-<<<<<<< HEAD
-      setLastSensorTime(0);
-      alert("Real-Time Mode Active! Move your phone to navigate.");
-=======
       lastSensorTimeRef.current = 0;
       alert("Live Mode: Enabling local IMU controls!");
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
     } else {
       setGPSActive(true);
       setUseIMUNavigation(false);
@@ -653,10 +520,6 @@ function App() {
     setDriftPath([])
     setVehiclePosition(startPoint)
     stopSimulation()
-<<<<<<< HEAD
-
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
     lastPositionRef.current = startPoint
 
     if (gpsSimulatorRef.current) gpsSimulatorRef.current.reset()
@@ -679,76 +542,6 @@ function App() {
     calculateRoute(start, end, currentRouteMode)
   }
 
-<<<<<<< HEAD
-  // --- CHAOS MODE AUDIO ---
-  const playChaosAudio = () => {
-    if (!chaosAudio || !chaosMode) return;
-
-    // Create audio context
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-    // Create siren sound
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(1200, audioContext.currentTime + 0.5);
-
-    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.02, audioContext.currentTime + 0.5);
-
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.5);
-
-    // Play static randomly
-    if (Math.random() > 0.7) {
-      setTimeout(() => {
-        const noise = audioContext.createBufferSource();
-        const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.5, audioContext.sampleRate);
-        const data = buffer.getChannelData(0);
-
-        for (let i = 0; i < buffer.length; i++) {
-          data[i] = Math.random() * 2 - 1;
-        }
-
-        noise.buffer = buffer;
-        const noiseGain = audioContext.createGain();
-        noiseGain.gain.value = 0.05;
-
-        noise.connect(noiseGain);
-        noiseGain.connect(audioContext.destination);
-        noise.start();
-        noise.stop(audioContext.currentTime + 0.3);
-      }, 300);
-    }
-  };
-
-  // Effect for chaos audio
-  useEffect(() => {
-    if (chaosMode && chaosAudio) {
-      const interval = setInterval(() => {
-        playChaosAudio();
-      }, 2000);
-
-      return () => clearInterval(interval);
-    }
-  }, [chaosMode, chaosAudio]);
-
-  useEffect(() => {
-    if (chaosMode && chaosAudio) {
-      audioManager.loadAudio('siren', '/src/assets/audio/emergency_siren.mp3');
-      audioManager.play('siren');
-      audioManager.setVolume('siren', 0.2);
-    } else {
-      audioManager.stop('siren');
-    }
-  }, [chaosMode, chaosAudio]);
-
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
   if (authChecking) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -763,83 +556,6 @@ function App() {
   return (
     <div className={`relative min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${chaosMode ? 'overflow-hidden chaos-mode' : ''}`}>
 
-<<<<<<< HEAD
-      {/* CHAOS OVERLAY EFFECTS */}
-      {chaosMode && (
-        <>
-          {/* Red pulsing overlay */}
-          <div className="fixed inset-0 pointer-events-none z-40">
-            <div className={`absolute inset-0 ${chaosIntensity >= 3 ? 'bg-red-500/10 animate-pulse' : 'bg-red-500/5'}`}></div>
-
-            {/* Screen shake effect */}
-            <div className={`absolute inset-0 ${chaosIntensity >= 2 ? 'animate-shake' : ''}`}></div>
-
-            {/* VHS scan lines */}
-            <div className="absolute inset-0" style={{
-              backgroundImage: `linear-gradient(
-              to bottom,
-              transparent 50%,
-              rgba(0, 255, 255, 0.03) 50%
-            )`,
-              backgroundSize: '100% 4px',
-              opacity: chaosIntensity >= 3 ? 0.3 : 0.1
-            }}></div>
-
-            {/* Emergency border */}
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-yellow-500 to-red-500 animate-flash"></div>
-            <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-yellow-500 to-red-500 animate-flash"></div>
-
-            {/* Glitch particles */}
-            {[...Array(chaosIntensity * 5)].map((_, i) => (
-              <div
-                key={i}
-                className="absolute w-1 h-1 bg-red-500 rounded-full animate-ping"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                  animationDelay: `${Math.random() * 2}s`,
-                  opacity: Math.random() * 0.5
-                }}
-              />
-            ))}
-          </div>
-
-          {/* Emergency Banner */}
-          <div className={`relative z-50 ${chaosIntensity >= 4 ? 'animate-shake-hard' : 'animate-shake'}`}>
-            <div className="bg-gradient-to-r from-red-600 via-red-700 to-red-600 text-yellow-300 text-center p-3 text-xl font-black border-y-4 border-yellow-400 animate-flash chaos-text">
-              <div className="flex items-center justify-center gap-4">
-                <span className="text-2xl">🚨</span>
-                <span>SOLAR ARMAGEDDON! Kp: OVER 9000!</span>
-                <span className="text-2xl">🚨</span>
-              </div>
-              <div className="text-sm text-yellow-200 mt-1">
-                ANNOUNCE WINNERS SOON!
-              </div>
-            </div>
-          </div>
-
-          {/* Breaking News Ticker */}
-          {chaosIntensity >= 2 && (
-            <div className="w-full overflow-hidden bg-red-900 border-b-2 border-yellow-400 h-8 relative z-40">
-              <div className="flex items-center h-full">
-                <div className="px-4 py-1 bg-red-700 text-white font-bold whitespace-nowrap text-sm">
-                  🚨 BREAKING
-                </div>
-                <div className="flex-1 overflow-hidden relative h-full">
-                  <div className="absolute whitespace-nowrap text-yellow-300 font-semibold text-sm flex items-center h-full animate-ticker">
-                    GPS SYSTEMS FAILING WORLDWIDE • SOLAR FLARE IMPACT MAXIMUM • EMERGENCY PROTOCOLS ACTIVATED • NAVIGATION COMPROMISED • SYSTEM CRITICAL
-                  </div>
-                </div>
-                <div className="px-4 py-1 bg-red-700 text-white font-bold whitespace-nowrap text-sm">
-                  🚨
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4">
@@ -898,38 +614,20 @@ function App() {
           </div>
         </div>
       )}
-<<<<<<< HEAD
-
-      {/* SELECTION INDICATOR */}
-      {(activePointType === 'start' || activePointType === 'end') && (
-        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-[2000] bg-gray-900/90 text-white px-6 py-3 rounded-full shadow-lg backdrop-blur-sm animate-bounce-subtle flex items-center gap-3">
-          {activePointType === 'start' ? <MapPin className="w-5 h-5 text-blue-400" /> : <Target className="w-5 h-5 text-green-400" />}
-          <span className="font-medium">Click on map to set {activePointType === 'start' ? 'Start Point' : 'End Point'}</span>
-          <button onClick={() => setActivePointType(null)} className="ml-2 p-1 hover:bg-white/20 rounded-full">✕</button>
-        </div>
-      )}
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
-<<<<<<< HEAD
-          {/* Left Column - Weather and Globe */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* 1. LIVE SENSOR TOGGLE - Compact version */}
-=======
           {/* Left Column */}
           <div className="lg:col-span-1 space-y-6">
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
             <div className="glass-card p-3 rounded-xl border-2 border-purple-500 shadow-sm bg-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Wifi className={`w-5 h-5 ${realTimeMode ? 'text-green-500 animate-pulse' : 'text-gray-400'}`} />
                   <div className="flex flex-col">
                     <span className="font-bold text-gray-800 text-sm leading-tight">Live Sensors</span>
-                    <span className="text-[9px] text-gray-500">Firebase: {realTimeMode ? 'Active' : 'Idle'}</span>
+                    <span className="text-[9px] text-gray-500">WebSocket: {realTimeMode ? 'Active' : 'Idle'}</span>
                   </div>
                 </div>
                 <button onClick={toggleRealTimeMode} className={`px-3 py-1.5 text-xs rounded-lg font-bold transition-all ${realTimeMode ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
@@ -938,18 +636,10 @@ function App() {
               </div>
             </div>
 
-<<<<<<< HEAD
-            {/* 2. SOLAR STORM 3D GLOBE - Smaller */}
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
             <div className="h-[300px] rounded-xl overflow-hidden shadow-lg border border-gray-200 bg-black relative">
               <SolarStormGlobe kpIndex={spaceWeather?.kp_index || 2} compact={true} />
             </div>
 
-<<<<<<< HEAD
-            {/* 3. SPACE WEATHER PANEL - Compact */}
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
             <SpaceWeatherPanel
               spaceWeather={spaceWeather}
               onRefresh={fetchSpaceWeather}
@@ -963,9 +653,6 @@ function App() {
           {/* Middle Column - Map */}
           <div className="lg:col-span-2">
             <div className="h-[600px] rounded-xl overflow-hidden shadow-xl relative">
-<<<<<<< HEAD
-              {activePointType === 'selecting' && <div className="absolute inset-0 bg-black/10 z-10 pointer-events-none" />}
-=======
 
               {/* === EMBEDDED IMU OVERLAY CONTROLS === */}
               {realTimeMode && (
@@ -1006,7 +693,6 @@ function App() {
                 </div>
               )}
 
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
               <MapComponent
                 center={mapCenter}
                 zoom={12}
@@ -1026,44 +712,14 @@ function App() {
               />
             </div>
 
-<<<<<<< HEAD
-            {/* Status Bar below map */}
-            <div className="mt-4 p-3 bg-white rounded-lg shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${gpsActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {gpsActive ? 'GPS Active' : 'IMU Active'}
-                  </div>
-                  {realTimeMode && <div className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Live Mode</div>}
-                </div>
-                <div className="text-xs text-gray-600">
-                  {vehiclePosition && <span>Position: {vehiclePosition[0].toFixed(6)}, {vehiclePosition[1].toFixed(6)}</span>}
-                </div>
-              </div>
-            </div>
-
-            {/* Route Comparison below map */}
-            <div className="mt-4">
-              <RouteComparison
-                routes={routes}
-                currentMode={currentRouteMode}
-                onSelectRoute={toggleSystemMode}
-                compact={true}
-              />
-=======
             {/* Route Comparison */}
             <div className="mt-4">
               <RouteComparison routes={routes} currentMode={currentRouteMode} onSelectRoute={toggleSystemMode} compact={true} />
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
             </div>
           </div>
 
           {/* Right Column - Controls */}
           <div className="lg:col-span-1 space-y-6">
-<<<<<<< HEAD
-            {/* Control Panel - Full height */}
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
             <div className="h-full">
               <ControlPanel
                 routeMode={currentRouteMode}
@@ -1081,172 +737,6 @@ function App() {
                 compact={false}
               />
             </div>
-<<<<<<< HEAD
-
-            {/* Additional info/status card */}
-            {/* <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
-        <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4" />
-          System Status
-        </h3>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">GPS Signal</span>
-            <span className={`text-xs font-medium px-2 py-1 rounded ${gpsActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-              {gpsActive ? 'Strong' : 'Weak'}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">Weather Risk</span>
-            <span className={`text-xs font-medium px-2 py-1 rounded ${
-              spaceWeather?.risk_level === 'high' ? 'bg-red-100 text-red-800' :
-              spaceWeather?.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-              'bg-green-100 text-green-800'
-            }`}>
-              {spaceWeather?.risk_level || 'Low'}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">Vehicle</span>
-            <span className="text-xs font-medium text-gray-700">
-              {vehicleMoving ? 'Moving' : 'Stopped'}
-            </span>
-          </div>
-        </div>
-      </div> */}
-
-            {/* Demo Routes Quick Select
-      <div className="bg-white rounded-xl p-4 shadow-sm border">
-        <h3 className="font-bold text-gray-800 mb-3">Quick Routes</h3>
-        <div className="grid grid-cols-2 gap-2">
-          <button 
-            onClick={() => useDemoRoute('SF_OAKLAND')}
-            className="p-2 bg-blue-50 hover:bg-blue-100 rounded-lg text-xs font-medium text-blue-700 transition-colors"
-          >
-            SF → Oakland
-          </button>
-          <button 
-            onClick={() => useDemoRoute('SF_BERKELEY')}
-            className="p-2 bg-green-50 hover:bg-green-100 rounded-lg text-xs font-medium text-green-700 transition-colors"
-          >
-            SF → Berkeley
-          </button>
-          <button 
-            onClick={() => useDemoRoute('SF_SAN_JOSE')}
-            className="p-2 bg-purple-50 hover:bg-purple-100 rounded-lg text-xs font-medium text-purple-700 transition-colors"
-          >
-            SF → San Jose
-          </button>
-          <button 
-            onClick={resetSimulation}
-            className="p-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-xs font-medium text-gray-700 transition-colors"
-          >
-            Reset All
-          </button>
-        </div>
-      </div> */}
-          </div>
-        </div>
-
-        {/* CHAOS ERROR POPUPS */}
-        {chaosMode && chaosIntensity >= 3 && (
-          <>
-            {[...Array(Math.min(chaosIntensity, 3))].map((_, i) => (
-              <div
-                key={i}
-                className="fixed z-[10000] p-3 bg-red-900/90 border-2 border-red-600 rounded-lg shadow-lg max-w-xs animate-fade-in"
-                style={{
-                  left: `${20 + (i * 25)}%`,
-                  top: `${30 + (i * 15)}%`,
-                  animationDelay: `${i * 0.5}s`
-                }}
-              >
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-300 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-bold text-red-200 text-sm mb-1">
-                      SYSTEM ERROR
-                    </div>
-                    <div className="text-xs text-white">
-                      {[
-                        "GPS SIGNAL LOST: Solar interference",
-                        "IMU CALIBRATION FAILING",
-                        "SATELLITE NETWORK COMPROMISED",
-                        "NAVIGATION ACCURACY DEGRADED",
-                        "SYSTEM OVERLOAD DETECTED"
-                      ][i]}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
-
-        {/* SYSTEM STATUS HUD */}
-        {chaosMode && (
-          <div className="fixed bottom-4 right-4 z-[9999] w-48 bg-black/80 backdrop-blur-sm rounded-lg p-3 border border-red-500">
-            <div className="text-center text-xs text-red-400 font-bold mb-2">
-              SYSTEM STATUS
-            </div>
-
-            <div className="space-y-2">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-300">GPS SIGNAL</span>
-                  <span className={`font-bold ${chaosIntensity >= 4 ? 'text-red-400' : 'text-yellow-400'}`}>
-                    {chaosIntensity >= 4 ? 'FAILED' : 'UNSTABLE'}
-                  </span>
-                </div>
-                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-red-500 transition-all duration-300"
-                    style={{ width: `${100 - (chaosIntensity * 20)}%` }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-300">SYSTEM LOAD</span>
-                  <span className="text-red-400 font-bold">{chaosIntensity * 20}%</span>
-                </div>
-                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-yellow-500 transition-all duration-300"
-                    style={{ width: `${chaosIntensity * 20}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="text-center text-[10px] text-gray-400 mt-2">
-                CHAOS LEVEL: {chaosIntensity}/5
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* FAKE COUNTDOWN TIMER */}
-        {chaosMode && chaosIntensity >= 4 && (
-          <div className="fixed top-24 right-4 z-[9999] animate-pulse">
-            <div className="p-3 bg-red-900/90 border-2 border-red-600 rounded-lg text-center min-w-[140px]">
-              <div className="text-xs text-gray-300 mb-1">SYSTEM FAILURE IN</div>
-              <div className="text-2xl font-mono font-bold text-red-400 mb-2">01:{String(59 - (new Date().getSeconds())).padStart(2, '0')}</div>
-              <div className="text-xs text-red-300">TAKE COVER!</div>
-            </div>
-          </div>
-        )}
-      </main>
-
-      <footer className="mt-8 border-t bg-white py-6">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="text-gray-600"><p className="font-medium">StellarRoute - Hackathon Project</p></div>
-            <div className="flex items-center gap-4">
-              <button onClick={() => window.open(`${BASE_URL}/docs`, '_blank')} className="text-sm text-primary hover:text-primary/80">API Documentation</button>
-            </div>
-          </div>
-=======
           </div>
         </div>
       </main>
@@ -1254,7 +744,6 @@ function App() {
       <footer className="mt-8 border-t bg-white py-6">
         <div className="container mx-auto px-4 text-center text-gray-600">
           <p className="font-medium">StellarRoute - Hackathon Project</p>
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
         </div>
       </footer>
 

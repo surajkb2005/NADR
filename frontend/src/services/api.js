@@ -1,20 +1,7 @@
 // frontend/src/services/api.js
 import axios from 'axios'
-<<<<<<< HEAD
-// --- CONFIGURATION UPDATE (CRUCIAL FOR SESSION AUTH) ---
-// 1. Use absolute URL: Get the API URL from environment variables 
-//(e.g., VITE_API_URL=http://localhost:8000)
-// 2. Append the '/api' base path used by your FastAPI app
 
-// const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api';
-
-import { BASE_URL } from '../config'   // ✅ import from config
-
-const API_BASE_URL = `${BASE_URL}/api`;  // ✅ cleaner
-=======
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL);
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
+const API_BASE_URL = '/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

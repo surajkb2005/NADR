@@ -2,11 +2,7 @@ import asyncio
 import hashlib
 import logging
 
-<<<<<<< HEAD
-# import os
-=======
 import os
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
 import random
 import smtplib
 import time
@@ -17,11 +13,7 @@ from typing import Any, Dict, List
 
 import redis.asyncio as redis
 
-<<<<<<< HEAD
-# from dotenv import load_dotenv
-=======
 from dotenv import load_dotenv
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
 from fastapi import (
     FastAPI,
     HTTPException,
@@ -39,12 +31,10 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 # import centralized settings
 from .config import settings
 
-<<<<<<< HEAD
 from .cache.memory_cache import cache
-=======
+
 # from .cache.memory_cache import cache
 from .utils.redis_cache import RedisCache
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
 
 # Assuming these modules exist in your project structure
 from .models import (
@@ -70,7 +60,6 @@ import time as time_module
 
 # load_dotenv()
 
-<<<<<<< HEAD
 # SECRET_KEY = os.getenv("SECRET_KEY", "a-default-secret-key-that-must-be-changed")
 # ALGORITHM = "HS256"
 # SESSION_EXPIRY_SECONDS = 30 * 60  # 30 minutes
@@ -83,8 +72,6 @@ import time as time_module
 # EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 # EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-=======
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
 # Now use settings
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
@@ -93,20 +80,17 @@ REDIS_URL = settings.REDIS_URL
 
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
-<<<<<<< HEAD
 # Email config from settings
-SMTP_SERVER = settings.SMTP_SERVER
-SMTP_PORT = settings.SMTP_PORT
-EMAIL_ADDRESS = settings.EMAIL_ADDRESS
-EMAIL_PASSWORD = settings.EMAIL_PASSWORD
-=======
+# SMTP_SERVER = settings.SMTP_SERVER
+# SMTP_PORT = settings.SMTP_PORT
+# EMAIL_ADDRESS = settings.EMAIL_ADDRESS
+# EMAIL_PASSWORD = settings.EMAIL_PASSWORD
 cache = RedisCache(redis_client)
 
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 active_connections: List[WebSocket] = []
@@ -124,7 +108,6 @@ app = FastAPI(
     version="2.0.0",
 )
 
-<<<<<<< HEAD
 # code before refactor
 
 # origins = [
@@ -141,13 +124,13 @@ app = FastAPI(
 #     allow_headers=["*"],
 # )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,  # was hardcoded list
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-=======
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=settings.CORS_ORIGINS,  # was hardcoded list
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 # Prometheus metrics
 REQUEST_COUNT = Counter(
     "http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
@@ -165,8 +148,7 @@ origins = [FRONTEND_URL]
 
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["stellar-route.me", "localhost", "*.compute.amazonaws.com"],
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
+    allowed_hosts=["*"],
 )
 
 

@@ -34,8 +34,6 @@ algorithms/*
 backend/algorithms
 LaptopTesting/*
 LaptopTesting/
-<<<<<<< HEAD
-=======
 *.pem
 *.env
 
@@ -65,6 +63,5 @@ override.tf.json
 
 # Lock file (depends, see below)
 .terraform.lock.hcl
->>>>>>> d4da3e93441bb6f4d123f06ba8a01e1893783523
 MobileRemote/
 mobilesensorss/
