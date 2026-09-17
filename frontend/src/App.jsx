@@ -189,6 +189,7 @@ function App() {
       setImuEnabled(true);
 
       // 1. Start reading orientation (Compass)
+      const HEADING_CALIBRATION_OFFSET = -90; // adjust if drift direction changes
       window.addEventListener("deviceorientation", e => {
         let correctedHeading;
         if (e.webkitCompassHeading !== undefined) {
@@ -196,6 +197,8 @@ function App() {
         } else {
           correctedHeading = Math.round(360 - (e.alpha || 0)) % 360;
         }
+        correctedHeading = (correctedHeading + HEADING_CALIBRATION_OFFSET) % 360;
+        if (correctedHeading < 0) correctedHeading += 360;
         headingRef.current = correctedHeading;
         setDeviceHeading(correctedHeading);
       });
@@ -210,11 +213,9 @@ function App() {
         // Calculate the total physical force applied to the phone
         let magnitude = Math.sqrt(accX * accX + accY * accY + accZ * accZ);
 
-        // Deadzone: Ignore tiny hand jitters (values under 1.0)
         if (magnitude > 1.0) {
-          // Add the physical acceleration to our current speed
-          let newSpeed = manualSpeedRef.current + (magnitude * 0.6); // Multiplier for feel
-          manualSpeedRef.current = Math.min(40, newSpeed); // Cap max speed at 40
+          let newSpeed = manualSpeedRef.current + (magnitude * 0.6);
+          manualSpeedRef.current = Math.min(20, newSpeed);
         }
       });
 

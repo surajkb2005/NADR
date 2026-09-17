@@ -343,42 +343,6 @@ const MapComponent = ({
         {/* Routes */}
         {renderRoutes()}
 
-        {/* Start Point */}
-        {startPoint && (
-          <Marker
-            position={startPoint}
-            icon={createPointIcon('bg-blue-500', 'start')}
-            draggable={true}
-          >
-            <Popup>
-              <div className="p-2">
-                <div className="font-semibold text-blue-600">START POINT</div>
-                <div className="text-sm text-gray-600">
-                  {startPoint[0].toFixed(4)}, {startPoint[1].toFixed(4)}
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        )}
-
-        {/* End Point */}
-        {endPoint && (
-          <Marker
-            position={endPoint}
-            icon={createPointIcon('bg-green-500', 'end')}
-            draggable={true}
-          >
-            <Popup>
-              <div className="p-2">
-                <div className="font-semibold text-green-600">END POINT</div>
-                <div className="text-sm text-gray-600">
-                  {endPoint[0].toFixed(4)}, {endPoint[1].toFixed(4)}
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        )}
-
         {/* Vehicle Marker */}
         {vehiclePosition && (
           <Marker
