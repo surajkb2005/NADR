@@ -56,21 +56,6 @@ from prometheus_client import Counter, Histogram, generate_latest
 from fastapi.responses import Response as FastAPIResponse
 import time as time_module
 
-# --- CONFIGURATION ---
-
-# load_dotenv()
-
-# SECRET_KEY = os.getenv("SECRET_KEY", "a-default-secret-key-that-must-be-changed")
-# ALGORITHM = "HS256"
-# SESSION_EXPIRY_SECONDS = 30 * 60  # 30 minutes
-
-# REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-# redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-
-# SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-# SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-# EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-# EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 # Now use settings
 SECRET_KEY = settings.SECRET_KEY
@@ -80,11 +65,6 @@ REDIS_URL = settings.REDIS_URL
 
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
-# Email config from settings
-# SMTP_SERVER = settings.SMTP_SERVER
-# SMTP_PORT = settings.SMTP_PORT
-# EMAIL_ADDRESS = settings.EMAIL_ADDRESS
-# EMAIL_PASSWORD = settings.EMAIL_PASSWORD
 cache = RedisCache(redis_client)
 
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
@@ -108,21 +88,6 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# code before refactor
-
-# origins = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-#     "http://localhost:5173",
-#     "http://127.0.0.1:5173",
-# ]
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=origins,
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
 
 # app.add_middleware(
 #     CORSMiddleware,
@@ -131,6 +96,7 @@ app = FastAPI(
 #     allow_methods=["*"],
 #     allow_headers=["*"],
 # )
+
 # Prometheus metrics
 REQUEST_COUNT = Counter(
     "http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]

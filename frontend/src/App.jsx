@@ -1,27 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { AlertTriangle, Navigation2, Satellite, MapPin, Target, Wifi, Smartphone } from 'lucide-react'
+import { Navigation2, MapPin, Target, Wifi, Smartphone } from 'lucide-react'
 import MapComponent from './components/MapComponent'
-import SpaceWeatherPanel from './components/SpaceWeatherPanel'
 import ControlPanel from './components/ControlPanel'
 import RouteComparison from './components/RouteComparison'
-import SolarStormGlobe from './components/SolarStormGlobe'
 import { stellarRouteAPI } from './services/api'
-import { GPSSimulator, VehicleAnimator, IMUNavigator } from './utils/simulation'
+import { GPSSimulator, VehicleAnimator } from './utils/simulation'
 import { DEMO_COORDINATES } from './utils/constants'
 import LoginModal from './components/LoginModal';
-import './styles/chaosEffects.css'; // We'll create this file
-import { audioManager } from './utils/audioManager';
-
-// // --- FIREBASE IMPORTS ---
-// import { initializeApp } from "firebase/app";
-// import { getDatabase, ref, onValue } from "firebase/database";
-// import { firebaseConfig } from './firebaseConfig';
-
-// // Initialize Firebase
-// const firebaseApp = initializeApp(firebaseConfig);
-// const db = getDatabase(firebaseApp);
-
-import { BASE_URL } from './config';
 
 function App() {
   // --- AUTHENTICATION STATE ---
@@ -42,12 +27,10 @@ function App() {
   const headingRef = useRef(0);
 
   // --- CORE STATE ---
-  const [spaceWeather, setSpaceWeather] = useState(null)
   const [heatmapData, setHeatmapData] = useState(null)
   const [routes, setRoutes] = useState({})
   const [currentRouteMode, setCurrentRouteMode] = useState('normal')
   const [loading, setLoading] = useState(false)
-  const [simulationMode, setSimulationMode] = useState(false)
   const [activePointType, setActivePointType] = useState(null)
   const [imuPath, setImuPath] = useState([])
   const [driftPath, setDriftPath] = useState([])
@@ -63,9 +46,6 @@ function App() {
   const [vehicleMoving, setVehicleMoving] = useState(false)
   const [vehiclePosition, setVehiclePosition] = useState(null)
   const [useIMUNavigation, setUseIMUNavigation] = useState(false)
-
-  const [chaosMode, setChaosMode] = useState(false)
-  const [chaosIntensity, setChaosIntensity] = useState(3)
 
   // --- REFS ---
   const gpsSimulatorRef = useRef(null)
@@ -291,7 +271,6 @@ function App() {
     try {
       setLoading(true)
       const response = await stellarRouteAPI.getCurrentSpaceWeather(mapCenter[0], mapCenter[1])
-      setSpaceWeather(response.data)
 
       let boundsToUse = mapBounds;
       if (!boundsToUse) {
@@ -341,9 +320,7 @@ function App() {
 
       let routePath = data.route?.path || [start, end]
 
-      if (mode === 'normal' && simulationMode && data.alternatives?.drifted?.path) {
-        routePath = data.alternatives.drifted.path;
-      } else if (data.alternatives?.normal?.path) {
+      if (data.alternatives?.normal?.path) {
         routePath = data.alternatives.normal.path;
       }
 
@@ -375,26 +352,6 @@ function App() {
       }
     } catch (error) {
       console.error('Error calculating IMU path:', error)
-    }
-  }
-
-  const simulateStorm = async (scenario) => {
-    try {
-      setLoading(true)
-      const response = await stellarRouteAPI.simulateStorm(scenario, mapCenter[0], mapCenter[1])
-      setSpaceWeather(response.data)
-      setSimulationMode(true)
-      if (startPoint && endPoint) calculateRoute(startPoint, endPoint, currentRouteMode)
-    } catch (error) { console.error(error); setLoading(false) }
-  }
-
-  const stopSimulation = async () => {
-    try {
-      await stellarRouteAPI.stopSimulation()
-      setSimulationMode(false)
-      fetchSpaceWeather()
-    } catch (error) {
-      console.error('Error stopping simulation:', error)
     }
   }
 
@@ -448,9 +405,7 @@ function App() {
       setUseIMUNavigation(true);
     } else {
       let targetPath = routes.normal?.path || [];
-      if (simulationMode && routes.drifted?.path && routes.drifted.path.length > 0) {
-        targetPath = routes.drifted.path;
-      }
+
       if (targetPath.length > 0) {
         const closestIndex = findClosestPathIndex(currentPos, targetPath);
         vehicleAnimatorRef.current = new VehicleAnimator(targetPath.slice(closestIndex));
@@ -519,7 +474,6 @@ function App() {
     setUseIMUNavigation(false)
     setDriftPath([])
     setVehiclePosition(startPoint)
-    stopSimulation()
     lastPositionRef.current = startPoint
 
     if (gpsSimulatorRef.current) gpsSimulatorRef.current.reset()
@@ -533,9 +487,9 @@ function App() {
   const useDemoRoute = (routeName) => {
     let start, end
     switch (routeName) {
-      case 'BLR_MUMBAI': start = DEMO_COORDINATES.BENGALURU; end = DEMO_COORDINATES.MUMBAI; break;
-      case 'BLR_GOA': start = DEMO_COORDINATES.BENGALURU; end = DEMO_COORDINATES.GOA; break;
-      case 'BLR_MANGALURU': start = DEMO_COORDINATES.BENGALURU; end = DEMO_COORDINATES.MANGALURU; break;
+      case 'BLR_MUMBAI': start = DEMO_COORDINATES.Bengaluru; end = DEMO_COORDINATES.MUMBAI; break;
+      case 'BLR_GOA': start = DEMO_COORDINATES.Bengaluru; end = DEMO_COORDINATES.GOA; break;
+      case 'BLR_MANGALURU': start = DEMO_COORDINATES.Bengaluru; end = DEMO_COORDINATES.MANGALURU; break;
       default: return;
     }
     setStartPoint(start); setEndPoint(end); setVehiclePosition(start)
@@ -554,7 +508,7 @@ function App() {
   }
 
   return (
-    <div className={`relative min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${chaosMode ? 'overflow-hidden chaos-mode' : ''}`}>
+    <div className="relative min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
 
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
@@ -635,19 +589,6 @@ function App() {
                 </button>
               </div>
             </div>
-
-            <div className="h-[300px] rounded-xl overflow-hidden shadow-lg border border-gray-200 bg-black relative">
-              <SolarStormGlobe kpIndex={spaceWeather?.kp_index || 2} compact={true} />
-            </div>
-
-            <SpaceWeatherPanel
-              spaceWeather={spaceWeather}
-              onRefresh={fetchSpaceWeather}
-              onSimulate={simulateStorm}
-              simulationMode={simulationMode}
-              loading={loading}
-              compact={true}
-            />
           </div>
 
           {/* Middle Column - Map */}
@@ -707,8 +648,6 @@ function App() {
                 useIMUNavigation={useIMUNavigation}
                 onMapClick={handleMapClick}
                 onBoundsChange={handleBoundsChange}
-                chaosMode={chaosMode}
-                chaosIntensity={chaosIntensity}
               />
             </div>
 

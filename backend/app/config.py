@@ -15,8 +15,6 @@ class Settings:
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
 
-    # CORS – allow multiple origins from environment variable
-    # Example: CORS_ORIGINS=http://localhost:3000,http://localhost:5173,https://yourdomain.com
     CORS_ORIGINS: List[str] = os.getenv(
         "CORS_ORIGINS",
         "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://10.20.16.196,http://10.20.16.196:5173",

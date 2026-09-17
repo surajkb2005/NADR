@@ -22,7 +22,7 @@ const createVehicleIcon = (gpsActive, useIMUNavigation) => {
       iconAnchor: [20, 40]
     })
   }
-  
+
   return L.divIcon({
     html: `
       <div class="relative">
@@ -77,25 +77,23 @@ const MapClickHandler = ({ onMapClick }) => {
 
 const MapController = ({ center, zoom, bounds }) => {
   const map = useMap()
-  
+
   useEffect(() => {
     if (center) {
       map.setView(center, zoom)
     }
   }, [center, zoom, map])
-  
+
   useEffect(() => {
     if (bounds) {
       map.fitBounds(bounds)
     }
   }, [bounds, map])
-  
+
   return null
 }
 
 const MapComponent = ({
-  chaosMode = false, 
-  chaosIntensity = 1,
   center = [37.7749, -122.4194],
   zoom = 13,
   heatmapData = null,
@@ -107,41 +105,41 @@ const MapComponent = ({
   imuPath = [],
   driftPath = [],
   useIMUNavigation = false,
-  onMapClick = () => {},
-  onBoundsChange = () => {}
+  onMapClick = () => { },
+  onBoundsChange = () => { }
 }) => {
   const mapRef = useRef(null)
 
-useEffect(() => {
-  if (!mapRef.current) return;
+  useEffect(() => {
+    if (!mapRef.current) return;
 
-  const map = mapRef.current;
+    const map = mapRef.current;
 
-  const updateBounds = () => {
-    const bounds = map.getBounds();
-    onBoundsChange([
-      bounds.getWest(),
-      bounds.getSouth(),
-      bounds.getEast(),
-      bounds.getNorth()
-    ]);
-  };
+    const updateBounds = () => {
+      const bounds = map.getBounds();
+      onBoundsChange([
+        bounds.getWest(),
+        bounds.getSouth(),
+        bounds.getEast(),
+        bounds.getNorth()
+      ]);
+    };
 
-  map.on("moveend", updateBounds);
+    map.on("moveend", updateBounds);
 
-  return () => {
-    map.off("moveend", updateBounds);
-  };
-}, []);
+    return () => {
+      map.off("moveend", updateBounds);
+    };
+  }, []);
 
   // Render heatmap polygons
   const renderHeatmap = () => {
     if (!heatmapData?.features) return null
-    
+
     return heatmapData.features.map((feature, index) => {
       const { geometry, properties } = feature
       const { risk_level, color, opacity } = properties
-      
+
       return (
         <Polygon
           key={`heatmap-${index}`}
@@ -170,11 +168,11 @@ useEffect(() => {
       )
     })
   }
-  
+
   // Render routes
   const renderRoutes = () => {
     const elements = []
-    
+
     // 1. Render DRIFTED Route (The "False" GPS path)
     if (routes.drifted?.path) {
       elements.push(
@@ -230,7 +228,7 @@ useEffect(() => {
         </Polyline>
       )
     }
-    
+
     // 3. Render SAFE Route
     if (routes.safe?.path) {
       elements.push(
@@ -258,7 +256,7 @@ useEffect(() => {
         </Polyline>
       )
     }
-    
+
     // 4. Render IMU path (Purple)
     if (imuPath.length > 0 && useIMUNavigation) {
       elements.push(
@@ -286,7 +284,7 @@ useEffect(() => {
         </Polyline>
       )
     }
-    
+
     // 5. Render dynamic drift path history (Red dash)
     if (driftPath.length > 1 && !gpsActive) {
       elements.push(
@@ -314,10 +312,10 @@ useEffect(() => {
         </Polyline>
       )
     }
-    
+
     return elements
   }
-  
+
   return (
     <div className="relative w-full h-full rounded-xl overflow-hidden shadow-xl">
       <MapContainer
@@ -327,25 +325,22 @@ useEffect(() => {
         ref={mapRef}
       >
         <TileLayer
-  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  url={chaosMode 
-    ? "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png"
-    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-  }
-/>
-        
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+
         <MapController center={center} zoom={zoom} />
         <MapClickHandler onMapClick={onMapClick} />
-        
+
         {/* Heatmap Overlay */}
         {renderHeatmap()}
-        
+
         {/* Routes */}
         {renderRoutes()}
-        
+
         {/* Start Point */}
         {startPoint && (
-          <Marker 
+          <Marker
             position={startPoint}
             icon={createPointIcon('bg-blue-500', 'start')}
             draggable={true}
@@ -360,10 +355,10 @@ useEffect(() => {
             </Popup>
           </Marker>
         )}
-        
+
         {/* End Point */}
         {endPoint && (
-          <Marker 
+          <Marker
             position={endPoint}
             icon={createPointIcon('bg-green-500', 'end')}
             draggable={true}
@@ -378,19 +373,19 @@ useEffect(() => {
             </Popup>
           </Marker>
         )}
-        
+
         {/* Vehicle Marker */}
         {vehiclePosition && (
-          <Marker 
+          <Marker
             position={vehiclePosition}
             icon={createVehicleIcon(gpsActive, useIMUNavigation)}
           >
             <Popup>
               <div className="p-2">
                 <div className="font-semibold">
-                  {gpsActive ? '🚗 VEHICLE (GPS ACTIVE)' : 
-                   useIMUNavigation ? '🧭 VEHICLE (IMU NAVIGATION)' : 
-                   '⚠️ VEHICLE (GPS FAILED)'}
+                  {gpsActive ? '🚗 VEHICLE (GPS ACTIVE)' :
+                    useIMUNavigation ? '🧭 VEHICLE (IMU NAVIGATION)' :
+                      '⚠️ VEHICLE (GPS FAILED)'}
                 </div>
                 <div className="text-sm text-gray-600 mt-1">
                   Position: {vehiclePosition[0].toFixed(6)}, {vehiclePosition[1].toFixed(6)}
@@ -400,7 +395,7 @@ useEffect(() => {
           </Marker>
         )}
       </MapContainer>
-      
+
 
       {/* Legend */}
       <div className="absolute bottom-0 left-0 glass-card p-2 rounded-lg backdrop-blur-sm max-w-xs z-[1000]">

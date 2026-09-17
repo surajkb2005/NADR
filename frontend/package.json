@@ -4,17 +4,13 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@react-three/drei": "^9.122.0",
-    "@react-three/fiber": "^8.18.0",
     "@tailwindcss/forms": "^0.5.7",
     "axios": "^1.7.9",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.309.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-leaflet": "^4.2.1",
-    "recharts": "^2.10.3",
-    "three": "^0.182.0"
+    "react-leaflet": "^4.2.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",

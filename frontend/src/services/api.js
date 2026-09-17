@@ -14,16 +14,6 @@ export const stellarRouteAPI = {
   getCurrentSpaceWeather: (lat, lon) =>
     api.get('/space-weather/current', { params: { latitude: lat, longitude: lon } }),
 
-  simulateStorm: (scenario, lat, lon) =>
-    api.get('/space-weather/simulate', {
-      params: { scenario, latitude: lat, longitude: lon }
-    }),
-
-  stopSimulation: () => api.get('/space-weather/stop-simulation'),
-
-  getStormTimeline: (scenario) =>
-    api.get('/space-weather/timeline', { params: { scenario } }),
-
   // Heatmap
   getHeatmap: (bbox, resolution = 0.05) =>
     api.post('/heatmap', { bbox, resolution }),

@@ -120,16 +120,6 @@ const ControlPanel = ({
               }
             </div>
           </div>
-
-          {/* <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 p-3 rounded-lg border border-yellow-200">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="w-4 h-4 text-yellow-600" />
-              <span className="text-sm font-medium text-yellow-800">Storm Simulation</span>
-            </div>
-            <div className="text-xs text-yellow-700">
-              Click on storm buttons in Space Weather panel
-            </div>
-          </div> */}
         </div>
       </div>
 
