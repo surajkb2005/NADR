@@ -36,7 +36,7 @@ function App() {
   const [driftPath, setDriftPath] = useState([])
 
   // --- MAP STATE ---
-  const [mapCenter] = useState(DEMO_COORDINATES.Bengaluru)
+  const [mapCenter, setMapCenter] = useState(DEMO_COORDINATES.Bengaluru)
   const [startPoint, setStartPoint] = useState(DEMO_COORDINATES.Bengaluru)
   const [endPoint, setEndPoint] = useState(DEMO_COORDINATES.Mumbai)
   const [mapBounds, setMapBounds] = useState(null)
@@ -52,6 +52,7 @@ function App() {
   const vehicleAnimatorRef = useRef(null)
   const imuNavigatorRef = useRef(null)
   const lastPositionRef = useRef(null)
+  const geoWatchIdRef = useRef(null)
 
   // --- PERSISTENCE EFFECT ---
   useEffect(() => {
@@ -155,6 +156,28 @@ function App() {
     };
   }, [realTimeMode]);
 
+  // --- LIVE GPS TRACKING EFFECT ---
+useEffect(() => {
+  if (!navigator.geolocation || realTimeMode) return; // IMU mode takes over movement
+
+  geoWatchIdRef.current = navigator.geolocation.watchPosition(
+    (pos) => {
+      const coords = [pos.coords.latitude, pos.coords.longitude];
+      setMapCenter(coords);
+      setVehiclePosition(coords);
+      lastPositionRef.current = coords;
+    },
+    (err) => console.error('Geolocation error:', err),
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+  );
+
+  return () => {
+    if (geoWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(geoWatchIdRef.current);
+      geoWatchIdRef.current = null;
+    }
+  };
+}, [realTimeMode]);
 
   // --- SENSOR INTEGRATION LOGIC ---
   const requestSensorPermissions = async () => {
