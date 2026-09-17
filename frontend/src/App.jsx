@@ -157,27 +157,27 @@ function App() {
   }, [realTimeMode]);
 
   // --- LIVE GPS TRACKING EFFECT ---
-useEffect(() => {
-  if (!navigator.geolocation || realTimeMode) return; // IMU mode takes over movement
+  useEffect(() => {
+    if (!navigator.geolocation || realTimeMode) return; // IMU mode takes over movement
 
-  geoWatchIdRef.current = navigator.geolocation.watchPosition(
-    (pos) => {
-      const coords = [pos.coords.latitude, pos.coords.longitude];
-      setMapCenter(coords);
-      setVehiclePosition(coords);
-      lastPositionRef.current = coords;
-    },
-    (err) => console.error('Geolocation error:', err),
-    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-  );
+    geoWatchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const coords = [pos.coords.latitude, pos.coords.longitude];
+        setMapCenter(coords);
+        setVehiclePosition(coords);
+        lastPositionRef.current = coords;
+      },
+      (err) => console.error('Geolocation error:', err),
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+    );
 
-  return () => {
-    if (geoWatchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(geoWatchIdRef.current);
-      geoWatchIdRef.current = null;
-    }
-  };
-}, [realTimeMode]);
+    return () => {
+      if (geoWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(geoWatchIdRef.current);
+        geoWatchIdRef.current = null;
+      }
+    };
+  }, [realTimeMode]);
 
   // --- SENSOR INTEGRATION LOGIC ---
   const requestSensorPermissions = async () => {
@@ -277,17 +277,6 @@ useEffect(() => {
       localStorage.clear();
     }
   };
-
-  // --- INITIALIZATION ---
-  useEffect(() => {
-    fetchSpaceWeather()
-    gpsSimulatorRef.current = new GPSSimulator(startPoint)
-    imuNavigatorRef.current = new VehicleAnimator([startPoint])
-
-    setTimeout(() => {
-      calculateRoute(startPoint, endPoint, 'normal')
-    }, 1000)
-  }, [])
 
   // --- API CALLS ---
   const fetchSpaceWeather = async () => {

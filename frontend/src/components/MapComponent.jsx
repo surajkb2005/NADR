@@ -77,10 +77,15 @@ const MapClickHandler = ({ onMapClick }) => {
 
 const MapController = ({ center, zoom, bounds }) => {
   const map = useMap()
+  const initializedRef = useRef(false)
 
   useEffect(() => {
-    if (center) {
+    if (!center) return
+    if (!initializedRef.current) {
       map.setView(center, zoom)
+      initializedRef.current = true
+    } else {
+      map.panTo(center, { animate: true })
     }
   }, [center, zoom, map])
 
