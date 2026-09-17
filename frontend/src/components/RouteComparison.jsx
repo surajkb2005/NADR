@@ -4,7 +4,7 @@ import { RISK_LEVELS } from '../utils/constants'
 
 const RouteComparison = ({ routes, currentMode, onSelectRoute }) => {
   // Determine if we have a valid route set to compare
-  const hasRoutes = routes && (routes.normal || routes.safe)
+  const hasRoutes = true;
 
   if (!hasRoutes) {
     return (
