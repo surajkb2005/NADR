@@ -519,7 +519,7 @@ function App() {
                 <Navigation2 className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">NADR -  Neuro Adaptive Dead Reckoning</h1>
+                <h1 className="text-2xl font-bold text-gray-900">NADR</h1>
                 <p className="text-sm text-gray-600">IMU Navigation system during GPS outages</p>
               </div>
             </div>
@@ -537,9 +537,9 @@ function App() {
                   Login
                 </button>
               )}
-              <button onClick={resetSimulation} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors">
+              {/* <button onClick={resetSimulation} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors">
                 Reset Demo
-              </button>
+              </button> */}
             </div>
           </div>
         </div>
@@ -580,8 +580,8 @@ function App() {
                 <div className="flex items-center gap-2">
                   <Wifi className={`w-5 h-5 ${realTimeMode ? 'text-green-500 animate-pulse' : 'text-gray-400'}`} />
                   <div className="flex flex-col">
-                    <span className="font-bold text-gray-800 text-sm leading-tight">Live Sensors</span>
-                    <span className="text-[9px] text-gray-500">WebSocket: {realTimeMode ? 'Active' : 'Idle'}</span>
+                    <span className="font-bold text-gray-800 text-sm leading-tight">Activate Live IMU Sensors</span>
+                    <span className="text-[9px] text-gray-500"> Status: {realTimeMode ? 'Active' : 'Idle'}</span>
                   </div>
                 </div>
                 <button onClick={toggleRealTimeMode} className={`px-3 py-1.5 text-xs rounded-lg font-bold transition-all ${realTimeMode ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
