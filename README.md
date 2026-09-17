@@ -17,6 +17,16 @@ NADR keeps vehicles on the map through tunnels, urban canyons, underground parki
 
 ---
 
+Team Members:
+1. Soham Dave
+2. Suraj Krishna Banavalikar
+3. Trisha N Iyer
+4. Varun S
+5. Vachana B R
+6. Darshan Raj
+
+--- 
+
 ## 🎯 The Problem
 
 GNSS/GPS signals fail or degrade in tunnels, underground parking, dense urban canyons, and during geomagnetic/solar storms. When that happens, most navigation apps either **freeze the map**, **snap the trajectory** to the wrong road, or drop guidance entirely — a real safety and reliability risk for drivers, delivery riders, and emergency responders who have no backup positioning system.
