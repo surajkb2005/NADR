@@ -3,9 +3,6 @@
 **Navigation that doesn't stop when GPS does.**
 NADR keeps vehicles on the map through tunnels, urban canyons, underground parking, and geomagnetic disturbances — by fusing GNSS with smartphone IMU sensors and AI-assisted dead reckoning.
 
-[![Live Demo](https://img.shields.io/badge/demo-live-green)](https://stellar-route.me)
-[![Code Quality Checks](https://github.com/varun99015/StellarRoute/actions/workflows/quality_check.yml/badge.svg)](https://github.com/varun99015/StellarRoute/actions)
-
 ---
 
 ## 🏆 Smart India Hackathon 2026
