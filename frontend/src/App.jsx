@@ -81,78 +81,82 @@ function App() {
     verifySession();
   }, []);
 
-  // --- REAL-TIME WEBSOCKET & SENSOR EFFECT ---
+  // --- REAL-TIME WEBSOCKET & SENSOR EFFECT (local-first) ---
+  const imuWsRef = useRef(null);
+
   useEffect(() => {
     if (!realTimeMode) return;
 
-    const userId = crypto.randomUUID();
+    const userId = localStorage.getItem("client_id") || crypto.randomUUID();
     localStorage.setItem("client_id", userId);
 
-    // Dynamically get API WS URL based on env or hostname
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsBaseUrl = `${wsProtocol}//${window.location.host}`;
 
-    const mapWs = new WebSocket(`${wsBaseUrl}/ws/map?client_id=${userId}`);
-    const imuWs = new WebSocket(`${wsBaseUrl}/ws/imu?client_id=${userId}`);
+    let imuWs = null;
 
-    mapWs.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "imu_update") {
-        const newPos = calculateNewPosition(
-          lastPositionRef.current?.[0] || startPoint[0],
-          lastPositionRef.current?.[1] || startPoint[1],
-          data,
-          lastSensorTimeRef.current
-        );
-
-        setVehiclePosition([newPos.lat, newPos.lon]);
-        lastPositionRef.current = [newPos.lat, newPos.lon];
-        lastSensorTimeRef.current = newPos.timestamp;
+    const connectWs = () => {
+      try {
+        imuWs = new WebSocket(`${wsBaseUrl}/ws/imu?client_id=${userId}`);
+        imuWsRef.current = imuWs;
+        imuWs.onopen = () => console.log("IMU WS connected (sync only)");
+        imuWs.onclose = () => console.log("IMU WS disconnected — continuing locally");
+        imuWs.onerror = () => { }; // swallow errors, local calc keeps running
+      } catch (err) {
+        imuWs = null;
       }
     };
 
-    // 2. IMU Sender (Broadcasts our local sensor data)
+    connectWs();
 
+    // sensor tick: ALWAYS compute locally first
     const sensorInterval = setInterval(() => {
-      // --- APPLY FRICTION (Upgraded) ---
       if (manualSpeedRef.current > 0) {
-        // 1. Multiplicative decay (slows down fast when going fast)
         manualSpeedRef.current *= 0.90;
-
-        // 2. Linear drag (forces a complete stop when going slow)
         manualSpeedRef.current -= 1.0;
-
-        // 3. Snap to 0 aggressively if it drops below 2%
-        if (manualSpeedRef.current < 2.0) {
-          manualSpeedRef.current = 0;
-        }
+        if (manualSpeedRef.current < 2.0) manualSpeedRef.current = 0;
       }
-
-      // Sync the physical math to the React UI State
       setManualSpeed(Math.round(manualSpeedRef.current));
 
-      // Broadcast to map
-      if (imuWs.readyState === WebSocket.OPEN) {
-        imuWs.send(JSON.stringify({
-          type: "imu_update",
-          speed: manualSpeedRef.current,
-          heading: headingRef.current,
-          timestamp: Date.now()
-        }));
+      // local calculation — no server needed
+      const newPos = calculateNewPosition(
+        lastPositionRef.current?.[0] ?? startPoint[0],
+        lastPositionRef.current?.[1] ?? startPoint[1],
+        { speed: manualSpeedRef.current, heading: headingRef.current, timestamp: Date.now() },
+        lastSensorTimeRef.current
+      );
+      setVehiclePosition([newPos.lat, newPos.lon]);
+      lastPositionRef.current = [newPos.lat, newPos.lon];
+      lastSensorTimeRef.current = newPos.timestamp;
+
+      // best-effort sync to server — never blocks local tracking
+      try {
+        if (imuWsRef.current && imuWsRef.current.readyState === WebSocket.OPEN) {
+          imuWsRef.current.send(JSON.stringify({
+            type: "imu_update",
+            speed: manualSpeedRef.current,
+            heading: headingRef.current,
+            lat: newPos.lat,
+            lon: newPos.lon,
+            timestamp: newPos.timestamp
+          }));
+        }
+      } catch (err) {
+        // ignore — local tracking already happened above
       }
     }, 200);
 
-    mapWs.onopen = () => console.log("Map WS connected");
-    imuWs.onopen = () => console.log("IMU WS connected");
-
-    mapWs.onclose = () => {
-      console.log("Map WS disconnected safely.");
-    };
+    // reconnect attempt every 10s if socket isn't open
+    const reconnectInterval = setInterval(() => {
+      if (!imuWsRef.current || imuWsRef.current.readyState === WebSocket.CLOSED) {
+        connectWs();
+      }
+    }, 10000);
 
     return () => {
-      mapWs.close();
-      imuWs.close();
+      if (imuWs) imuWs.close();
       clearInterval(sensorInterval);
+      clearInterval(reconnectInterval);
     };
   }, [realTimeMode]);
 
@@ -315,8 +319,9 @@ function App() {
 
       if (isNaN(north)) return;
       const bboxList = [parseFloat(west), parseFloat(south), parseFloat(east), parseFloat(north)];
-      const response = await stellarRouteAPI.getHeatmap(bboxList);
-      setHeatmapData(response.data);
+
+      const data = await stellarRouteAPI.getHeatmap(bboxList); // no more .data — wrapper returns it directly
+      if (data) setHeatmapData(data);
     } catch (error) {
       console.error('Heatmap Error:', error);
     }
@@ -325,29 +330,29 @@ function App() {
   const calculateRoute = async (start, end, mode = 'normal') => {
     try {
       setLoading(true)
-      const response = await stellarRouteAPI.calculateRoute(start, end, mode)
-      const data = response.data
+      const data = await stellarRouteAPI.calculateRoute(start, end, mode); // no more response.data
+      if (data) {
+        setRoutes(data.alternatives || {})
+        setCurrentRouteMode(mode)
 
-      setRoutes(data.alternatives || {})
-      setCurrentRouteMode(mode)
+        let routePath = data.route?.path || [start, end]
 
-      let routePath = data.route?.path || [start, end]
+        if (data.alternatives?.normal?.path) {
+          routePath = data.alternatives.normal.path;
+        }
 
-      if (data.alternatives?.normal?.path) {
-        routePath = data.alternatives.normal.path;
-      }
+        if (!vehicleMoving) {
+          vehicleAnimatorRef.current = new VehicleAnimator(routePath)
+          setVehiclePosition(routePath[0])
+          lastPositionRef.current = routePath[0]
+        }
 
-      if (!vehicleMoving) {
-        vehicleAnimatorRef.current = new VehicleAnimator(routePath)
-        setVehiclePosition(routePath[0])
-        lastPositionRef.current = routePath[0]
-      }
-
-      if (start && end) {
-        if (data.alternatives?.safe?.path) {
-          setImuPath(data.alternatives.safe.path);
-        } else {
-          calculateIMUPath(start, end);
+        if (start && end) {
+          if (data.alternatives?.safe?.path) {
+            setImuPath(data.alternatives.safe.path);
+          } else {
+            calculateIMUPath(start, end);
+          }
         }
       }
     } catch (error) {
@@ -359,9 +364,9 @@ function App() {
 
   const calculateIMUPath = async (start, end) => {
     try {
-      const response = await stellarRouteAPI.calculateRoute(start, end, 'safe')
-      if (response.data.alternatives?.safe?.path) {
-        setImuPath(response.data.alternatives.safe.path)
+      const data = await stellarRouteAPI.calculateRoute(start, end, 'safe')
+      if (data?.alternatives?.safe?.path) {
+        setImuPath(data.alternatives.safe.path)
       }
     } catch (error) {
       console.error('Error calculating IMU path:', error)

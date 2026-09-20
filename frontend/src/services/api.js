@@ -9,6 +9,19 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// --- Offline-safe fetch wrapper ---
+const cachedGet = async (key, fetchFn) => {
+  try {
+    const response = await fetchFn();
+    localStorage.setItem(key, JSON.stringify(response.data));
+    return response.data;
+  } catch (err) {
+    const cached = localStorage.getItem(key);
+    if (cached) return JSON.parse(cached);
+    return null;
+  }
+};
+
 export const stellarRouteAPI = {
   // Space Weather
   getCurrentSpaceWeather: (lat, lon) =>
@@ -16,11 +29,11 @@ export const stellarRouteAPI = {
 
   // Heatmap
   getHeatmap: (bbox, resolution = 0.05) =>
-    api.post('/heatmap', { bbox, resolution }),
+    cachedGet(`cache_heatmap_${bbox.join(',')}`, () => api.post('/heatmap', { bbox, resolution })),
 
   // Routing
   calculateRoute: (start, end, mode = 'normal') =>
-    api.post('/route', { start, end, mode }),
+    cachedGet(`cache_route_${start}_${end}_${mode}`, () => api.post('/route', { start, end, mode })),
 
   // Health
   checkHealth: () => api.get('/health'),
