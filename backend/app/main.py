@@ -14,6 +14,80 @@ from typing import Any, Dict, List
 import redis.asyncio as redis
 
 from dotenv import load_dotenv
+
+
+class InMemoryRedisFallback:
+    def __init__(self, decode_responses=True):
+        self.store = {}
+        self.ttl = {}
+        self.decode_responses = decode_responses
+
+    async def ping(self):
+        return True
+
+    async def get(self, key):
+        if key not in self.store:
+            return None
+        expires_at = self.ttl.get(key)
+        if expires_at is not None and expires_at <= time.time():
+            self.store.pop(key, None)
+            self.ttl.pop(key, None)
+            return None
+        return self.store[key]
+
+    async def setex(self, key, ttl, value):
+        self.store[key] = value
+        self.ttl[key] = time.time() + ttl
+
+    async def incr(self, key):
+        value = int((await self.get(key)) or 0) + 1
+        self.store[key] = str(value)
+        self.ttl[key] = time.time() + 60
+        return value
+
+    async def expire(self, key, ttl):
+        if key in self.store:
+            self.ttl[key] = time.time() + ttl
+        return True
+
+    async def delete(self, key):
+        self.store.pop(key, None)
+        self.ttl.pop(key, None)
+        return 1
+
+    async def flushdb(self):
+        self.store.clear()
+        self.ttl.clear()
+        return True
+
+    async def close(self):
+        self.store.clear()
+        self.ttl.clear()
+        return True
+
+    async def publish(self, channel, message):
+        return 1
+
+    def pubsub(self):
+        return InMemoryPubSub()
+
+
+class InMemoryPubSub:
+    def __init__(self):
+        self.channels = set()
+
+    async def subscribe(self, *channels):
+        self.channels.update(channels)
+        return True
+
+    async def get_message(self, timeout=0):
+        return None
+
+
+try:
+    import fakeredis.aioredis as fakeredis
+except ImportError:  # pragma: no cover
+    fakeredis = None
 from fastapi import (
     FastAPI,
     HTTPException,
@@ -63,7 +137,30 @@ ALGORITHM = settings.ALGORITHM
 SESSION_EXPIRY_SECONDS = settings.SESSION_EXPIRY_SECONDS
 REDIS_URL = settings.REDIS_URL
 
-redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+
+def create_redis_client():
+    client = redis.from_url(REDIS_URL, decode_responses=True)
+    try:
+        asyncio.run(client.ping())
+        return client
+    except Exception:
+        if fakeredis is not None:
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Redis is unavailable at %s; falling back to in-memory fakeredis for local development.",
+                REDIS_URL,
+            )
+            return fakeredis.FakeRedis(decode_responses=True)
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Redis is unavailable at %s; falling back to a lightweight in-memory Redis stub for local development.",
+            REDIS_URL,
+        )
+        return InMemoryRedisFallback(decode_responses=True)
+
+
+redis_client = create_redis_client()
 
 cache = RedisCache(redis_client)
 
@@ -81,6 +178,27 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+def create_redis_client():
+    client = redis.from_url(REDIS_URL, decode_responses=True)
+    try:
+        asyncio.run(client.ping())
+        return client
+    except Exception:
+        if fakeredis is None:
+            logger.warning(
+                "Redis is unavailable at %s; continuing with a non-persistent in-memory fallback is not available.",
+                REDIS_URL,
+            )
+            return client
+
+        logger.warning(
+            "Redis is unavailable at %s; falling back to in-memory fakeredis for local development.",
+            REDIS_URL,
+        )
+        return fakeredis.FakeRedis(decode_responses=True)
+
 
 app = FastAPI(
     title="NADR - Neuro Adaptive Dead Reckoning",

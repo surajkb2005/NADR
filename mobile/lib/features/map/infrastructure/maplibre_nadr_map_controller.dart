@@ -5,6 +5,8 @@ import 'package:nadr_mobile/features/map/domain/current_location_marker.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
 import 'package:nadr_mobile/features/map/infrastructure/maplibre_current_location_layer.dart';
+import 'package:nadr_mobile/features/map/infrastructure/maplibre_destination_layer.dart';
+import 'package:nadr_mobile/features/destination/domain/destination.dart';
 
 final class MapLibreNadrMapController implements NadrMapController {
   MapLibreNadrMapController(this._controller);
@@ -12,11 +14,17 @@ final class MapLibreNadrMapController implements NadrMapController {
   final maplibre.MapController _controller;
   final MapLibreCurrentLocationLayer _locationLayer =
       MapLibreCurrentLocationLayer();
+  final MapLibreDestinationLayer _destinationLayer = MapLibreDestinationLayer();
 
-  Future<void> onStyleLoaded(maplibre.StyleController style) =>
-      _locationLayer.install(style);
+  Future<void> onStyleLoaded(maplibre.StyleController style) async {
+    await _locationLayer.install(style);
+    await _destinationLayer.install(style);
+  }
 
-  void detachStyle() => _locationLayer.detach();
+  void detachStyle() {
+    _locationLayer.detach();
+    _destinationLayer.detach();
+  }
 
   @override
   MapCameraState? get currentCamera {
@@ -123,6 +131,10 @@ final class MapLibreNadrMapController implements NadrMapController {
   @override
   Future<void> updateCurrentLocationMarker(CurrentLocationMarkerData? marker) =>
       _locationLayer.setMarker(marker);
+
+  @override
+  Future<void> updateDestinationMarker(Destination? destination) =>
+      _destinationLayer.setDestination(destination);
 
   @override
   Future<void> recenter(

@@ -177,6 +177,49 @@ void main() {
   });
 
   test(
+    'route requests expose typed 422, 429, timeout, and offline errors',
+    () async {
+      final adapter = FixtureAdapter([
+        FixtureReply(422, {
+          'detail': [
+            {
+              'loc': ['body', 'start'],
+              'msg': 'invalid',
+            },
+          ],
+        }),
+        FixtureReply(429, {'detail': 'provider-specific detail'}),
+        const FixtureReply.failure(DioExceptionType.receiveTimeout),
+        const FixtureReply.failure(DioExceptionType.connectionError),
+      ]);
+      final client = NadrRestClient(
+        baseUri: Uri.parse('https://example.test'),
+        cookieJar: CookieJar(),
+        dio: Dio()..httpClientAdapter = adapter,
+      );
+      addTearDown(client.dispose);
+
+      Future<NadrNetworkErrorKind> routeFailure() async {
+        try {
+          await client.calculateRoute(start: [1, 2], end: [3, 4]);
+          fail('Expected route failure');
+        } on NadrNetworkException catch (error) {
+          return error.kind;
+        }
+      }
+
+      expect(await routeFailure(), NadrNetworkErrorKind.validation);
+      expect(await routeFailure(), NadrNetworkErrorKind.rateLimited);
+      expect(await routeFailure(), NadrNetworkErrorKind.timeout);
+      expect(await routeFailure(), NadrNetworkErrorKind.connectionUnavailable);
+      expect(
+        adapter.requests.map((request) => request.uri.path),
+        everyElement('/route'),
+      );
+    },
+  );
+
+  test(
     'existing route, heatmap, weather, and auth contracts use one client',
     () async {
       final adapter = FixtureAdapter([

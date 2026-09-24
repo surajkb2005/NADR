@@ -43,15 +43,21 @@ void main() {
         sync: true,
       );
       final compass = StreamController<CompassEvent>.broadcast(sync: true);
+      final gyroscope = StreamController<GyroscopeEvent>.broadcast(sync: true);
+      final steps = StreamController<Object?>.broadcast(sync: true);
       final source = AndroidImuSensorSource(
         headingCapability: const _FakeCapability(false),
         motionEvents: () => motion.stream,
         compassEvents: () => compass.stream,
+        gyroscopeEvents: () => gyroscope.stream,
+        stepEvents: () => steps.stream,
       );
       addTearDown(() async {
         await source.dispose();
         await motion.close();
         await compass.close();
+        await gyroscope.close();
+        await steps.close();
       });
       final statuses = <SensorStatus>[];
       final samples = <ImuSensorSample>[];
@@ -60,6 +66,7 @@ void main() {
 
       await source.start();
       compass.add(CompassEvent.fromList([0, 0, 15]));
+      steps.add({'type': 'ready'});
       motion.add(UserAccelerometerEvent(4, 0, 0, DateTime.now()));
       await pumpEventQueue();
 
@@ -70,21 +77,27 @@ void main() {
   );
 
   test(
-    'supported north zero is valid; invalid heading pauses then recovers',
+    'north zero works; low quality calibrates; invalid heading pauses',
     () async {
       final motion = StreamController<UserAccelerometerEvent>.broadcast(
         sync: true,
       );
       final compass = StreamController<CompassEvent>.broadcast(sync: true);
+      final gyroscope = StreamController<GyroscopeEvent>.broadcast(sync: true);
+      final steps = StreamController<Object?>.broadcast(sync: true);
       final source = AndroidImuSensorSource(
         headingCapability: const _FakeCapability(true),
         motionEvents: () => motion.stream,
         compassEvents: () => compass.stream,
+        gyroscopeEvents: () => gyroscope.stream,
+        stepEvents: () => steps.stream,
       );
       addTearDown(() async {
         await source.dispose();
         await motion.close();
         await compass.close();
+        await gyroscope.close();
+        await steps.close();
       });
       final statuses = <SensorStatus>[];
       final samples = <ImuSensorSample>[];
@@ -92,10 +105,24 @@ void main() {
       source.samples.listen(samples.add);
       await source.start();
       compass.add(CompassEvent.fromList([0, 0, 15]));
+      gyroscope.add(GyroscopeEvent(0, 0, 0, DateTime.now()));
+      steps.add({'type': 'ready'});
       motion.add(UserAccelerometerEvent(4, 0, 0, DateTime.now()));
       await pumpEventQueue();
       expect(statuses, contains(SensorStatus.active));
       expect(samples.last.heading, 0);
+
+      compass.add(CompassEvent.fromList([45, 0, 45]));
+      motion.add(UserAccelerometerEvent(4, 0, 0, DateTime.now()));
+      await pumpEventQueue();
+      expect(statuses.last, SensorStatus.calibrating);
+      expect(samples.last.heading, 45);
+      expect(samples.last.headingAccuracyDegrees, 45);
+
+      compass.add(CompassEvent.fromList([0, 0, 15]));
+      motion.add(UserAccelerometerEvent(4, 0, 0, DateTime.now()));
+      await pumpEventQueue();
+      expect(statuses.last, SensorStatus.active);
 
       compass.add(CompassEvent.fromList([double.nan, 0, -1]));
       motion.add(UserAccelerometerEvent(4, 0, 0, DateTime.now()));
@@ -108,6 +135,12 @@ void main() {
       await pumpEventQueue();
       expect(statuses.last, SensorStatus.active);
       expect(samples.last.heading, 90);
+
+      steps.add({'type': 'step'});
+      await pumpEventQueue();
+      expect(samples.last.stepDetected, isTrue);
+      expect(samples.last.heading, 90);
+      expect(samples.last.headingAccuracyDegrees, 15);
     },
   );
 }

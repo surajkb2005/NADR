@@ -6,7 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:nadr_mobile/app/bootstrap/environment.dart';
 import 'package:nadr_mobile/core/geo/navigation_mode.dart' as domain;
+import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/core/network/backend_connectivity_panel.dart';
+import 'package:nadr_mobile/features/destination/domain/destination.dart';
+import 'package:nadr_mobile/features/destination/presentation/destination_selection_panel.dart';
 import 'package:nadr_mobile/features/imu/application/imu_navigation_coordinator.dart';
 import 'package:nadr_mobile/features/imu/application/imu_navigation_state.dart';
 import 'package:nadr_mobile/features/map/domain/map_defaults.dart';
@@ -20,8 +23,8 @@ import 'package:nadr_mobile/features/map/presentation/widgets/navigation_mode_co
 import 'package:nadr_mobile/features/location/application/location_coordinator.dart';
 import 'package:nadr_mobile/features/location/presentation/location_status_indicator.dart';
 import 'package:nadr_mobile/features/navigation/application/navigation_session_controller.dart';
+import 'package:nadr_mobile/features/routing/application/route_request_controller.dart';
 import 'package:nadr_mobile/shared/widgets/app_error_message.dart';
-import 'package:nadr_mobile/shared/widgets/app_loading_overlay.dart';
 import 'package:nadr_mobile/shared/widgets/compact_status_chip.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
@@ -35,6 +38,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   NadrMapController? _mapController;
   late final MapCameraFollowController _cameraFollowController;
   bool _recenterErrorVisible = false;
+  bool _isSelectingDestinationOnMap = false;
 
   @override
   void initState() {
@@ -78,7 +82,51 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _cameraFollowController.detachMapController(previousController);
     } else {
       unawaited(_cameraFollowController.attachMapController(controller));
+      unawaited(
+        controller.updateDestinationMarker(
+          ref.read(navigationSessionProvider).destination,
+        ),
+      );
     }
+  }
+
+  void _openDestinationPanel() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => DestinationSelectionPanel(
+        destination: ref.read(navigationSessionProvider).destination,
+        onSelectOnMap: () {
+          if (mounted) setState(() => _isSelectingDestinationOnMap = true);
+        },
+        onConfirm: ref.read(navigationSessionProvider.notifier).setDestination,
+        onClear: ref.read(navigationSessionProvider.notifier).clearDestination,
+      ),
+    );
+  }
+
+  void _handleMapLongPress(GeoCoordinate coordinate) {
+    if (!_isSelectingDestinationOnMap) return;
+    setState(() => _isSelectingDestinationOnMap = false);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => DestinationReviewPanel(
+        coordinate: coordinate,
+        onConfirm: () => ref
+            .read(navigationSessionProvider.notifier)
+            .setDestination(Destination(coordinate: coordinate)),
+      ),
+    );
+  }
+
+  Future<void> _restoreMapLayersAfterStyleReload() async {
+    await _cameraFollowController.restoreMarkerAfterStyleReload();
+    await _mapController?.updateDestinationMarker(
+      ref.read(navigationSessionProvider).destination,
+    );
   }
 
   Future<void> _recenterOnCurrentLocation() async {
@@ -135,9 +183,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         );
       },
     );
+    ref.listen(navigationSessionProvider.select((state) => state.destination), (
+      previous,
+      next,
+    ) {
+      unawaited(_mapController?.updateDestinationMarker(next));
+    });
 
     final environment = ref.watch(appEnvironmentProvider);
     final mapSurfaceBuilder = ref.watch(mapSurfaceBuilderProvider);
+    final destination = ref.watch(
+      navigationSessionProvider.select((state) => state.destination),
+    );
 
     return Scaffold(
       body: Stack(
@@ -149,21 +206,68 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             initialCamera: MapDefaults.initialCamera,
             surfaceBuilder: mapSurfaceBuilder,
             onControllerChanged: _handleMapControllerChanged,
-            onStyleLoaded: () => unawaited(
-              _cameraFollowController.restoreMarkerAfterStyleReload(),
-            ),
+            onStyleLoaded: () => unawaited(_restoreMapLayersAfterStyleReload()),
             onUserGesture: _cameraFollowController.handleUserGesture,
+            onLongPress: _handleMapLongPress,
           ),
-          const Align(
+          Align(
             alignment: Alignment.topCenter,
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: DestinationSurface(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: DestinationSurface(
+                  destination: destination,
+                  onPressed: _openDestinationPanel,
+                ),
               ),
             ),
           ),
+          if (_isSelectingDestinationOnMap)
+            Align(
+              alignment: Alignment.topCenter,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 82, 16, 0),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: Material(
+                      key: const ValueKey('map-destination-instructions'),
+                      elevation: 2,
+                      color: Theme.of(context).colorScheme.inverseSurface,
+                      borderRadius: BorderRadius.circular(18),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Long-press the map to propose a destination.',
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onInverseSurface,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              key: const ValueKey(
+                                'cancel-map-destination-mode',
+                              ),
+                              onPressed: () => setState(
+                                () => _isSelectingDestinationOnMap = false,
+                              ),
+                              child: const Text('Cancel'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (kDebugMode)
             Align(
               alignment: Alignment.topRight,
@@ -190,7 +294,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 MapCameraFollowMode.following,
             onRecenter: _recenterOnCurrentLocation,
           ),
-          const _SessionLoadingPresentation(),
         ],
       ),
     );
@@ -210,11 +313,12 @@ class _NavigationOverlays extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mode = ref.watch(
-      navigationSessionProvider.select((state) => state.navigationMode),
-    );
+    final session = ref.watch(navigationSessionProvider);
+    final mode = session.navigationMode;
+    final routeRequestState = ref.watch(routeRequestControllerProvider);
     final locationState = ref.watch(locationCoordinatorProvider);
     final imuState = ref.watch(imuNavigationCoordinatorProvider);
+    final destination = session.destination;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -237,6 +341,8 @@ class _NavigationOverlays extends ConsumerWidget {
                       icon: Icons.sensors_rounded,
                       color: imuState.phase == ImuNavigationPhase.active
                           ? const Color(0xFF7E57C2)
+                          : imuState.phase == ImuNavigationPhase.calibrating
+                          ? const Color(0xFFF59E0B)
                           : Theme.of(context).colorScheme.error,
                     ),
                     const SizedBox(height: 6),
@@ -280,29 +386,20 @@ class _NavigationOverlays extends ConsumerWidget {
                 ),
               ),
             ),
-            NavigationInfoSheet(mode: mode),
+            NavigationInfoSheet(
+              mode: mode,
+              destination: destination,
+              canRequestRoute: session.hasRouteEndpoints,
+              routeRequestState: routeRequestState,
+              onRequestRoute: () => unawaited(
+                ref
+                    .read(routeRequestControllerProvider.notifier)
+                    .requestRoute(),
+              ),
+            ),
           ],
         );
       },
-    );
-  }
-}
-
-class _SessionLoadingPresentation extends ConsumerWidget {
-  const _SessionLoadingPresentation();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isLoading = ref.watch(
-      navigationSessionProvider.select((state) => state.isLoading),
-    );
-    return IgnorePointer(
-      ignoring: !isLoading,
-      child: AppLoadingOverlay(
-        isLoading: isLoading,
-        message: 'Loading navigation',
-        child: const SizedBox.expand(),
-      ),
     );
   }
 }

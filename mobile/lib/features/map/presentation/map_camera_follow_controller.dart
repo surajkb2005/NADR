@@ -28,6 +28,11 @@ final class MapCameraFollowController {
   static const navigationZoom = 16.5;
   static const minimumUsefulNavigationZoom = 15.5;
 
+  /// Keep individual IMU steps visible instead of immediately moving the map
+  /// by the same sub-meter amount underneath a screen-centered marker. GPS
+  /// follow is unchanged, and IMU follow catches up after several steps.
+  static const minimumImuCameraFollowDisplacementMeters = 5.0;
+
   final void Function()? onChanged;
 
   NadrMapController? _mapController;
@@ -248,6 +253,20 @@ final class MapCameraFollowController {
       _scheduleCamera(
         MapCameraUpdate(center: position.coordinate, zoom: navigationZoom),
         const Duration(milliseconds: 500),
+      );
+      return;
+    }
+
+    final lastCameraTarget = _lastCameraTarget;
+    if (position.source == PositionSource.imu &&
+        lastCameraTarget != null &&
+        _distanceMeters(lastCameraTarget, position.coordinate) <
+            minimumImuCameraFollowDisplacementMeters) {
+      NadrDiagnostics.throttled(
+        'NADR_MAP_FOLLOW',
+        'imu_marker_dead_zone',
+        'marker_visible camera_deferred distanceMeters='
+            '${_distanceMeters(lastCameraTarget, position.coordinate)}',
       );
       return;
     }

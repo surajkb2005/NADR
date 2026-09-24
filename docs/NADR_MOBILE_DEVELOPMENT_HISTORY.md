@@ -336,17 +336,325 @@ request when closed.
 Mock fixtures mirror the current backend response construction and cover
 success, optional/missing/unknown fields, empty lists, malformed fields,
 HTTP failures, path prefixing, health states, cookie retention and persistence,
-and the unconfigured panel. The full suite passed **146 tests**; Flutter
-analysis was clean. A local live smoke check found neither direct FastAPI at
-port 8000 nor the repository Nginx proxy at port 5173 running. No backend was
-started or modified. Physical Android connectivity remains pending a real
-backend URL reachable from the device; mock success is not physical proof.
-The OpenFreeMap debug APK was installed on the Motorola without clearing app
-data. A screen capture confirmed the map remained active and the new panel
-opened with “Base URL: Not configured,” “Status: unconfigured,” and a retry
-button. This is a physical UI smoke check, **not** a backend connection.
+and the unconfigured and healthy/retry panel states. All **147 Flutter tests**
+passed, including the previous 133 navigation tests; Flutter analysis was
+clean. An initial
+local probe found no backend at loopback, and no backend was started or
+modified. The user then supplied a live direct FastAPI development URL. From
+the development machine, its `/` endpoint returned HTTP 200 with
+`status=operational`, while `/health` returned HTTP 200 with `status=healthy`
+and cache, Redis, and NOAA all true. The supplied Nginx alternative also
+returned those responses at `/api/` and `/api/health`, confirming that its
+proxy strips `/api` as inspected in `nginx.conf`.
+
+The final OpenFreeMap debug APK was built with that direct URL supplied only
+through `--dart-define=NADR_API_BASE_URL=...` and installed on the Motorola
+without clearing app data. The debug panel independently reached the backend
+from the physical phone and displayed `healthy`, “Backend reachable and
+healthy,” plus `cache=true, redis=true, noaa=true`. Manual “Check again” also
+returned healthy with a new timestamp. The map and GPS marker remained active
+behind the panel. This is a verified physical-device backend connection, not a
+mock result. The developer-specific LAN address is intentionally omitted from
+shared history and is not present in Flutter source.
 The Prompt 7 GPS/IMU/marker/recenter implementation was untouched. See
 `mobile/README.md` for phone-reachable URL and build instructions.
+
+## Prompt 9 — Android destination selection
+
+Destination selection now uses the existing `NavigationSessionState.destination`
+and `NavigationSessionController`; the map widget does not own a second confirmed
+destination. The map-top surface opens a Material 3 bottom sheet that accurately
+offers two methods: select a point on the map or enter latitude/longitude. It
+shows the confirmed coordinate when one exists and supports replacement and
+clearing. The sheet is scrollable on compact phones and width-constrained on
+larger devices. No place-name search is claimed.
+
+Map selection is an explicit temporary mode. After choosing “Select a point on
+the map,” a stationary MapLibre long-press supplies the native geographic
+coordinate and opens a confirmation sheet. Cancel leaves the existing
+destination unchanged; confirm updates the session. Ordinary camera gestures
+only change camera-follow state and cannot select a destination. Selection mode
+ends after a proposal or explicit cancel, while panning, zooming, and recentering
+remain available. Manual entry accepts finite numeric latitude in `[-90, 90]`
+and longitude in `[-180, 180]`; empty, malformed, NaN, infinity, and out-of-range
+values receive field-level errors. Valid numeric input is parsed without display
+rounding or coordinate snapping.
+
+The confirmed destination is rendered by one independent native MapLibre source,
+symbol layer, and orange pin image. It does not reuse the blue GPS or purple IMU
+sources. Replacement rewrites that single source; clearing writes an empty
+feature collection. The layer retains the latest session destination while a
+style is unavailable and restores it after style reload, avoiding duplicate
+layers and stale features. GPS fixes, IMU propagation, mode changes, map gestures,
+recenter, and backend diagnostics do not clear destination state.
+
+For Prompt 10, `NavigationSessionState.currentRouteStart` exposes the active
+displayed coordinate (latest accepted GPS fix in GPS mode or displayed IMU
+position in IMU mode), and `hasRouteEndpoints` reports whether both that start
+and a confirmed destination exist. A missing current position stays null and
+does not prevent safe destination selection. Prompt 9 sends no `/route` request,
+renders no route geometry, and fabricates no duration, risk, or route result.
+Known limitations are intentional at this stage: there is no place-name search,
+route calculation, route rendering, or destination persistence across a fresh
+app process. The confirmed destination persists for the active navigation
+session and through GPS/IMU updates and mode changes.
+
+Implementation files added or changed for Prompt 9:
+
+- `mobile/lib/features/destination/presentation/destination_selection_panel.dart`
+- `mobile/lib/features/map/infrastructure/maplibre_destination_layer.dart`
+- `mobile/lib/features/map/domain/nadr_map_controller.dart`
+- `mobile/lib/features/map/infrastructure/maplibre_nadr_map_controller.dart`
+- `mobile/lib/features/map/presentation/map_screen.dart`
+- `mobile/lib/features/map/presentation/widgets/destination_surface.dart`
+- `mobile/lib/features/map/presentation/widgets/interactive_map_layer.dart`
+- `mobile/lib/features/map/presentation/widgets/maplibre_map_surface.dart`
+- `mobile/lib/features/map/presentation/widgets/navigation_info_sheet.dart`
+- `mobile/lib/features/navigation/domain/navigation_session_state.dart`
+- destination, map-surface, map-screen, camera-controller, and navigation-session
+  tests under `mobile/test/`
+
+All **164 Flutter tests passed**. Coverage includes panel opening, long-press
+gating versus normal pan, map review confirm/cancel, exact manual entry, every
+invalid-input class, replace/clear, marker create/update/remove, style reload,
+GPS/IMU and position-update persistence, route-start selection, no-position
+safety, recenter persistence, and zero REST calls during selection. Flutter
+analysis reported no issues. The OpenFreeMap debug APK built successfully at
+`mobile/build/app/outputs/flutter-apk/app-debug.apk`; the backend URL remained a
+build-time `NADR_API_BASE_URL` value rather than Flutter source.
+
+That exact final APK was installed on the connected Motorola. Physical-device
+checks opened the destination sheet, showed a field-level manual-entry error,
+confirmed a valid manual coordinate, replaced it through a stationary native
+MapLibre long-press and review sheet, displayed the distinct orange pin alongside
+the blue current-location marker, cleared the destination and removed the pin,
+panned and recentered the map, and retained the destination through
+GPS→IMU→GPS. The device's actual coordinates are intentionally not recorded.
+No backend or React frontend file was modified.
+
+## Prompt 10 — Existing `/route` backend integration
+
+Flutter now integrates the backend's existing `POST /route` contract without
+changing or bypassing FastAPI. The exact JSON body is `start`, `end`, and `mode`;
+both coordinate pairs use `[latitude, longitude]`, and the explicit mobile action
+currently requests `mode: "normal"`. The backend remains the routing authority
+and continues to call OSRM internally. Flutter contains no OSRM URL and adds no
+routing algorithm.
+
+The request path is UI → `RouteRequestController` → `RouteRepository` →
+`RestRouteRepository` → the shared `NadrRestClient` → `/route`. Pressing “Get
+route” snapshots the active displayed start and confirmed destination before any
+asynchronous work. GPS mode therefore uses the latest accepted/displayed GPS
+coordinate; IMU mode uses the displayed IMU coordinate. Later sensor fixes,
+heading events, camera changes, and mode changes cannot mutate that in-flight
+snapshot and never trigger a route request themselves. The action is disabled
+until both endpoints exist. An in-flight guard coalesces rapid repeated taps.
+
+The decoder preserves the backend's normal, safe, drifted, and IMU alternatives,
+their latitude/longitude path geometry, distance in meters, estimated time in
+seconds, total and average risk, maximum risk zone, risk-segment counts,
+optimization, risk weight, description, and the start/end/source/Kp metadata.
+Unknown alternatives and response fields are ignored for forward compatibility;
+missing optional metadata remains absent. Empty alternatives, malformed shapes,
+and invalid coordinates are treated as invalid responses. A successful result is
+stored in `NavigationSessionState.routeAlternatives`, with the normal alternative
+selected when available, so Prompt 11 can render it.
+
+The navigation sheet uses a non-blocking button spinner and compact success
+status. Prompt 10 deliberately creates no MapLibre route source or layer, performs
+no fit-bounds operation, and shows no fabricated ETA or directions. Validation,
+rate-limit, timeout, unavailable-backend, server, HTTP, authentication, and
+invalid-response failures map to short recoverable messages. Cancellation is
+quiet. Failures preserve the current position, navigation mode, destination, and
+any previously valid route data.
+
+Implementation files added or changed specifically for Prompt 10:
+
+- `mobile/lib/features/routing/application/route_request_controller.dart`
+- `mobile/lib/features/routing/infrastructure/rest_route_repository.dart`
+- `mobile/lib/features/map/presentation/map_screen.dart`
+- `mobile/lib/features/map/presentation/widgets/navigation_info_sheet.dart`
+- route client, repository, controller, and map-screen tests under `mobile/test/`
+- `mobile/README.md`
+
+All **180 Flutter tests passed** and Flutter analysis reported no issues. Tests
+cover the exact method/path/body and coordinate order, all current alternatives,
+optional and unknown response data, empty/malformed responses, route-specific
+422/429/timeout/offline failures, GPS and IMU start authority, immutable endpoint
+snapshots, duplicate-tap coalescing, quiet cancellation, prior-state retention,
+explicit UI initiation, and the absence of sensor-triggered route calls.
+
+The final OpenFreeMap debug APK built at
+`mobile/build/app/outputs/flutter-apk/app-debug.apk` with the local backend URL
+supplied only through `NADR_API_BASE_URL`, then installed successfully on the
+connected Motorola. On-device checks confirmed a live current position, confirmed
+destination, enabled explicit route action, retained destination/action through
+GPS→IMU, and showed the expected recoverable unavailable-backend message without
+blocking the map. The exact device location is intentionally not recorded.
+
+Both previously configured LAN backend forms refused connections during final
+verification. Consequently, workstation live-response decoding and physical
+route-success verification are **pending**, not passed; mock decoding and physical
+touch behavior are reported separately. No backend was started or changed in
+response to that external connectivity state.
+
+Known limitation: route data is fetched and retained but not drawn. Route
+polylines, alternative styling/selection visuals, and route camera fitting belong
+to Prompt 11.
+
+**PUBLIC HOSTING: DEFERRED.** No deployment, tunnel, keep-alive service, or public
+infrastructure was created.
+
+## Android IMU tracking improvement and React source audit
+
+The actual website live-sensor implementation is in `frontend/src/App.jsx`.
+Its `requestSensorPermissions` handler reads gravity-free
+`DeviceMotionEvent.acceleration`, calculates the three-axis magnitude, and adds
+`magnitude * 0.6` to speed for every event above `1.0`, capped at 20 km/h. A
+separate 200 ms interval multiplies speed by `0.90`, subtracts 1 km/h, snaps
+values below 2 km/h to zero, and propagates the coordinate on a spherical Earth
+using speed, elapsed time, and heading. The first propagation interval is 0.1 s;
+negative or greater-than-2-second gaps do not move. GPS initializes the last
+position when browser live mode is off.
+
+`App.jsx` obtains heading from `webkitCompassHeading` or `360 - alpha`, then
+applies a fixed `-90°` offset. That comment is the only heading “calibration” in
+the React live implementation. There is no measured compass bias calibration,
+accelerometer calibration, step detector, stationary classifier, sensor fusion,
+or walking-direction inference in `App.jsx` or its imported helpers.
+`frontend/public/imu.html` is a separate standalone diagnostic: it reports raw
+alpha and acceleration including gravity, while its speed buttons are manual;
+it is not imported by `App.jsx` and adds no calibration. The simulator and
+vehicle animator in `frontend/src/utils/simulation.js` create deliberate route
+simulation, not live inertial calibration. `MapComponent.jsx` presents the
+result but does not estimate movement. The team-lead-suggested additional
+calibration was therefore not present anywhere in the inspected frontend.
+
+Flutter previously reproduced the React event-rate heuristic in
+`WebsiteImuPositionEstimator`, including every constant and the separate 200 ms
+decay tick. Code inspection and existing OnePlus logs showed why that parity is
+not accuracy: at approximately 50 accelerometer events/second, ordinary motion
+can repeatedly reach the 20 km/h cap and remain near 17 km/h after decay. The
+calculation depends on sampling rate, integrates oscillatory magnitude as
+one-way speed, and keeps residual speed after motion. Both React and the former
+Flutter production path also assume that the device/display heading is the
+user's travel direction. A turn therefore bends any residual travel even when
+only the device rotates.
+
+The Android coordinate handling is intentionally different from the browser.
+`sensors_plus` user acceleration is gravity-free, matching the React acceleration
+quantity, but the native `flutter_compass` plugin already builds a rotation
+matrix and remaps axes for Android display rotation and steep device tilt. It
+returns clockwise-from-north azimuth and a diagnostic accuracy estimate. The
+browser's arbitrary `-90°` offset was not copied. Zero remains valid north;
+missing or invalid heading remains null and cannot create northbound travel.
+Android compass accuracy is logged as high/medium/low/unknown but is not
+misrepresented as a measured guarantee. The heading still represents the top
+of the display, so the user must align that edge with travel; true pedestrian
+course is unavailable from these inputs alone.
+
+Production Android movement now uses `StepBasedImuPositionEstimator`; the exact
+website estimator remains in the tree and retains deterministic parity tests as
+a reference. Android's `TYPE_STEP_DETECTOR` is bridged through an EventChannel
+with the runtime Physical activity permission. Because the OnePlus detector
+registered successfully but emitted no events during a real carried-tablet
+walk, the estimator also has a conservative software cadence fallback. Raw
+acceleration no longer adds speed per event. A magnitude peak must cross
+0.80 m/s², fall to at most 0.30 m/s² to re-arm, and repeat 250–1500 ms later
+before it proves walking. Gyroscope magnitude at or above 0.80 rad/s suppresses
+device-rotation peaks and resets pending cadence. An isolated handling impulse
+cannot move the coordinate. After two seconds without an accepted step, reported
+cadence speed becomes zero; no residual distance is integrated.
+
+The constants are traceable rather than demo-oriented. The old React values
+(1.0 threshold, 0.6 gain per event, 20 km/h cap, 0.90/−1 decay, 2 km/h cutoff)
+remain unchanged only in the reference estimator. A 30-second OnePlus stationary
+trace observed sampled gravity-free magnitude from 0.0021 to 0.1098 m/s², while
+the user's multi-turn carried-tablet trace reached 1.9167 m/s². This supports the
+0.30/0.80 hysteresis separation. The 250–1500 ms cadence window admits roughly
+0.67–4 steps/second while rejecting duplicates and requiring re-confirmation
+after a stop. The 0.80 rad/s rotation gate corresponds to about 46°/s and
+prevents a deliberate device turn from acting as a walking peak. Each accepted
+step advances a configurable `NADR_IMU_STEP_LENGTH_METERS`, default 0.65 m and
+validated within 0.30–1.50 m. This default is an explicit conservative adult
+walking estimate refined by the user's visual over-movement report and a
+post-reset trace where 37 accepted steps represented an approximately 24 m
+indoor path (`37 × 0.65 m = 24.05 m`). It is not a claim about an individual
+stride; physical distance calibration can override it at build time. Android's
+explicit low heading quality (45° reported deviation) now pauses directional
+propagation; high/medium quality up to 30° and unknown quality remain usable and
+diagnosed.
+
+Sensor acquisition remains in `AndroidImuSensorSource`, session/timer handling
+in `ImuNavigationCoordinator`, movement and spherical propagation in the new
+estimator, authoritative positions in `NavigationSessionController`, and marker
+rendering in the existing MapLibre layer. Concise debug diagnostics now include
+heading and Android-reported quality, acceleration cadence/magnitude, angular
+rate, hardware/software step source, accepted/rejected reason, cadence speed,
+cumulative distance, estimated position, displayed position, and marker
+position. Per-event acceleration logging remains throttled. Physical logs are
+saved under the git-ignored `device_logs/` directory; exact device coordinates
+are not copied into this history.
+
+Automated coverage retains React-to-Dart formula parity and adds deterministic
+tests for north-clockwise cardinal propagation, valid 0°, unavailable heading,
+event-rate independence, stationary noise, walking cadence, straight travel,
+turning, rotation-only suppression, isolated impulses, duplicate peaks,
+stop/resume, exact step-length calibration, compass accuracy diagnostics, and
+hardware step mapping. Existing GPS/IMU switching, neutral no-heading Motorola
+behavior, destination/route retention, native marker updates, and camera-follow
+tests remain unchanged. All **197 Flutter tests passed** and Flutter analysis
+reported no issues.
+
+Physical evidence is kept distinct:
+
+- ADB confirmed the connected primary device as OnePlus Pad OPD2203, serial
+  `QCJFFYBAOJN7HUXS`. Its sensor inventory exposes linear acceleration,
+  gyroscope, north-referenced rotation vector, and Android step detector.
+- The stationary run logged zero accepted steps, zero speed, zero cumulative
+  displacement, roughly 0.05° heading variation, and sampled acceleration no
+  higher than 0.1098 m/s². This is log evidence; automated tests alone did not
+  establish it.
+- The user described the available indoor path as approximately 2 m, a 90°
+  left turn, 10 m, a 180° turn, 10 m, and additional short turns/roughly 2 m.
+  The first run proved that the advertised hardware step detector emitted zero
+  steps while the tablet was carried.
+- With the software cadence fallback, the same class of multi-turn run accepted
+  32 steps and estimated 22.4 m with the former 0.70 m default, rejected four high-angular-rate peaks, followed
+  multiple heading changes, and returned speed to zero after stopping. A later
+  trace review found and fixed a close-peak pending-candidate edge case, with a
+  deterministic regression test. These numbers show estimator behavior and do
+  not by themselves prove marker appearance or meter-level path accuracy.
+- The user's separate visual judgment was that tracking was better than the
+  previous React-parity estimator but still over-moved/drifted. That observation,
+  the 25.9 m post-reset estimate for an approximately 24 m path, the duplicate
+  trace, and low-quality ±45° headings led to the 0.65 m calibration, duplicate
+  fix, and low-heading-quality pause above. A final exact-APK post-fix walk
+  remains to be recorded. Motorola physical regression is pending
+  because that phone was not connected; automated coverage still verifies a
+  neutral purple IMU marker, “IMU heading unavailable,” no fabricated heading
+  or directional movement, and immediate GPS restoration.
+
+Files changed for this IMU pass are
+`mobile/android/app/src/main/AndroidManifest.xml`,
+`mobile/android/app/src/main/kotlin/com/nadr/mobile/MainActivity.kt`,
+`mobile/lib/features/imu/application/imu_navigation_coordinator.dart`,
+`mobile/lib/features/imu/domain/imu_sensor_sample.dart`,
+`mobile/lib/features/imu/infrastructure/android_imu_sensor_source.dart`,
+`mobile/lib/features/navigation/infrastructure/step_based_imu_position_estimator.dart`,
+and focused tests under `mobile/test/features/imu/` and
+`mobile/test/features/navigation/infrastructure/`. No React or backend file was
+modified. Destination selection, route state/request integration, GPS quality
+filtering, jump quarantine, map following/recenter behavior, and marker color
+architecture remain intact. Route rendering is still deferred to Prompt 11.
+
+Remaining limitations are explicit: stride length requires per-user calibration;
+compass distortion can still rotate the path; display heading is not independent
+walking course; software peak detection can miss unusual gait or handling; and
+inertial error accumulates without absolute corrections. Advanced orientation
+fusion, pedestrian-heading inference, bias estimation, and GPS/map constraints
+remain a separate future sensor-fusion stage. Calibration cannot eliminate IMU
+drift.
 
 ## Development setup on this machine
 
@@ -378,16 +686,16 @@ first. Verify with `dart format lib test`, `flutter analyze`, `flutter test`,
 
 **Completed prototype foundations:** Flutter shell, models/session, map-first
 UI and real interactive map, foreground GPS, marker/camera handling, manual
-GPS/IMU control, experimental IMU port, and the Prompt 7.2 guards above.
+GPS/IMU control, experimental IMU port, the Prompt 7.2 guards, shared REST
+client/connectivity diagnostics, and usable destination selection.
 
 **Partial:** location and IMU navigation reliability (hardware-dependent and
-not production-grade), destination/route domain and UI shells, map styling
+not production-grade), route retrieval/state without map rendering, map styling,
 and on-device visual validation.
 
-**Not yet implemented:** backend REST client/integration, usable destination
-selection, existing `/route` API integration, route display, route information
-and risk metadata, and remaining website-parity features (including auth,
-simulation, and live data where applicable). Later production possibilities,
-not current prototype features, include automatic GPS/IMU switching, advanced
-sensor fusion/drift handling, offline maps/routing, and persistent navigation
-sessions. Do not begin these as part of Prompt 7.2.
+**Not yet implemented:** route display and route-comparison/risk presentation,
+plus remaining website-parity features
+(including auth, simulation, and live data where applicable). Later production
+possibilities, not current prototype features, include automatic GPS/IMU
+switching, advanced sensor fusion/drift handling, offline maps/routing, and
+persistent navigation sessions. Route rendering begins in Prompt 11.
