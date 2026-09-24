@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre/maplibre.dart' as maplibre;
+import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
 import 'package:nadr_mobile/features/map/infrastructure/maplibre_nadr_map_controller.dart';
@@ -21,12 +22,14 @@ final class MapSurfaceCallbacks {
     required this.onStyleLoaded,
     required this.onUserGesture,
     required this.onError,
+    this.onLongPress,
   });
 
   final ValueChanged<NadrMapController> onControllerReady;
   final VoidCallback onStyleLoaded;
   final VoidCallback onUserGesture;
   final ValueChanged<String> onError;
+  final ValueChanged<GeoCoordinate>? onLongPress;
 }
 
 typedef MapSurfaceBuilder = Widget Function(
@@ -48,6 +51,21 @@ Widget buildMapLibreSurface(
 bool isUserCameraGestureEvent(maplibre.MapEvent event) {
   return event is maplibre.MapEventStartMoveCamera &&
       event.reason == maplibre.CameraChangeReason.apiGesture;
+}
+
+GeoCoordinate? coordinateFromLongPressEvent(maplibre.MapEvent event) {
+  if (event is! maplibre.MapEventLongClick) return null;
+  final latitude = event.point.lat;
+  final longitude = event.point.lon;
+  if (!latitude.isFinite ||
+      !longitude.isFinite ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180) {
+    return null;
+  }
+  return GeoCoordinate(latitude: latitude, longitude: longitude);
 }
 
 class MapLibreMapSurface extends StatefulWidget {
@@ -110,11 +128,15 @@ class _MapLibreMapSurfaceState extends State<MapLibreMapSurface> {
             })
             .catchError((Object error) {
               if (mounted) {
-                widget.callbacks.onError('Location layer failed: $error');
+                widget.callbacks.onError('Map marker layers failed: $error');
               }
             });
       },
       onEvent: (event) {
+        final coordinate = coordinateFromLongPressEvent(event);
+        if (coordinate != null) {
+          widget.callbacks.onLongPress?.call(coordinate);
+        }
         if (isUserCameraGestureEvent(event)) {
           widget.callbacks.onUserGesture();
         }

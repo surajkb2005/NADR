@@ -7,6 +7,7 @@ import 'package:nadr_mobile/core/geo/position_sample.dart';
 import 'package:nadr_mobile/features/map/domain/current_location_marker.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
+import 'package:nadr_mobile/features/destination/domain/destination.dart';
 import 'package:nadr_mobile/features/map/presentation/map_camera_follow_controller.dart';
 import 'package:nadr_mobile/features/navigation/domain/navigation_session_state.dart';
 
@@ -65,6 +66,40 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 560));
 
     expect(map.cameraUpdates.single.center, next.coordinate);
+  });
+
+  test('IMU marker moves visibly before camera follow catches up', () async {
+    final origin = sample(PositionSource.gps, 12.97, 77.59);
+    await follow.updateFromSession(
+      NavigationSessionState(latestGpsPosition: origin),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 560));
+    map.clear();
+
+    final near = sample(PositionSource.imu, 12.97, 77.59002);
+    await follow.updateFromSession(
+      NavigationSessionState(
+        navigationMode: NavigationMode.imu,
+        latestGpsPosition: origin,
+        latestImuPosition: near,
+      ),
+    );
+
+    expect(map.markerUpdates.single?.coordinate, near.coordinate);
+    expect(map.cameraUpdates, isEmpty);
+
+    map.clear();
+    final beyondDeadZone = sample(PositionSource.imu, 12.97, 77.59006);
+    await follow.updateFromSession(
+      NavigationSessionState(
+        navigationMode: NavigationMode.imu,
+        latestGpsPosition: origin,
+        latestImuPosition: beyondDeadZone,
+      ),
+    );
+
+    expect(map.markerUpdates.single?.coordinate, beyondDeadZone.coordinate);
+    expect(map.cameraUpdates.single.center, beyondDeadZone.coordinate);
   });
 
   test('rapid positions coalesce to the latest camera target', () async {
@@ -415,4 +450,7 @@ final class RecordingMapController implements NadrMapController {
   ) async {
     markerUpdates.add(marker);
   }
+
+  @override
+  Future<void> updateDestinationMarker(Destination? destination) async {}
 }

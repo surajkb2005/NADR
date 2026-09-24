@@ -1,11 +1,13 @@
 import 'dart:convert';
-import 'dart:ui' show Canvas;
+import 'dart:ui' show Canvas, Offset;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre/maplibre.dart' as maplibre;
 import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
+import 'package:nadr_mobile/features/destination/domain/destination.dart';
 import 'package:nadr_mobile/features/map/domain/current_location_marker.dart';
 import 'package:nadr_mobile/features/map/infrastructure/maplibre_current_location_layer.dart';
+import 'package:nadr_mobile/features/map/infrastructure/maplibre_destination_layer.dart';
 import 'package:nadr_mobile/features/map/presentation/widgets/maplibre_map_surface.dart';
 
 void main() {
@@ -29,6 +31,26 @@ void main() {
         isFalse,
       );
     }
+  });
+
+  test('only a valid MapLibre long click yields a destination coordinate', () {
+    expect(
+      coordinateFromLongPressEvent(
+        const maplibre.MapEventLongClick(
+          point: maplibre.Geographic(lon: 77.5946, lat: 12.9716),
+          screenPoint: Offset(100, 200),
+        ),
+      ),
+      const GeoCoordinate(latitude: 12.9716, longitude: 77.5946),
+    );
+    expect(
+      coordinateFromLongPressEvent(
+        const maplibre.MapEventStartMoveCamera(
+          reason: maplibre.CameraChangeReason.apiGesture,
+        ),
+      ),
+      isNull,
+    );
   });
 
   test('native marker is geographic rather than a projected screen point', () {
@@ -247,6 +269,65 @@ void main() {
             .single;
     expect(eastFeature['id'], isNot(northFeature['id']));
     expect(eastFeature['properties']['heading'], 90);
+  });
+
+  test(
+    'destination layer creates, replaces, and removes one feature',
+    () async {
+      final layer = MapLibreDestinationLayer();
+      final style = _RecordingStyleController();
+      await layer.install(style);
+      const first = Destination(
+        coordinate: GeoCoordinate(latitude: 12.97, longitude: 77.59),
+      );
+      const replacement = Destination(
+        coordinate: GeoCoordinate(latitude: -33.5, longitude: 151.2),
+      );
+
+      await layer.setDestination(first);
+      expect(style.sources, [MapLibreDestinationLayer.sourceId]);
+      expect(style.layers, [MapLibreDestinationLayer.layerId]);
+      expect(
+        style.sourceData[MapLibreDestinationLayer.sourceId],
+        MapLibreDestinationLayer.geoJsonFor(first),
+      );
+      await layer.setDestination(replacement);
+      final replacementJson = jsonDecode(
+        style.sourceData[MapLibreDestinationLayer.sourceId]!,
+      ) as Map<String, dynamic>;
+      expect(replacementJson['features'], hasLength(1));
+      expect(replacementJson['features'].single['geometry']['coordinates'], [
+        151.2,
+        -33.5,
+      ]);
+      expect(style.sources, hasLength(1));
+      expect(style.layers, hasLength(1));
+
+      await layer.setDestination(null);
+      expect(
+        style.sourceData[MapLibreDestinationLayer.sourceId],
+        MapLibreDestinationLayer.emptyGeoJson,
+      );
+    },
+  );
+
+  test('style reload recreates and restores confirmed destination', () async {
+    const destination = Destination(
+      coordinate: GeoCoordinate(latitude: 40.7128, longitude: -74.006),
+    );
+    final layer = MapLibreDestinationLayer();
+    await layer.setDestination(destination);
+    final first = _RecordingStyleController();
+    await layer.install(first);
+    final reloaded = _RecordingStyleController();
+    await layer.install(reloaded);
+
+    expect(reloaded.sources, [MapLibreDestinationLayer.sourceId]);
+    expect(reloaded.layers, [MapLibreDestinationLayer.layerId]);
+    expect(
+      reloaded.sourceData[MapLibreDestinationLayer.sourceId],
+      MapLibreDestinationLayer.geoJsonFor(destination),
+    );
   });
 }
 

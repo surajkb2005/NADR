@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_compass/flutter_compass.dart';
+import 'package:flutter/services.dart';
 import 'package:nadr_mobile/core/diagnostics/nadr_diagnostics.dart';
 import 'package:nadr_mobile/features/imu/domain/imu_sensor_sample.dart';
 import 'package:nadr_mobile/features/imu/domain/imu_sensor_source.dart';
@@ -16,6 +17,8 @@ final class AndroidImuSensorSource implements ImuSensorSource {
     HeadingCapabilitySource? headingCapability,
     Stream<CompassEvent>? Function()? compassEvents,
     Stream<UserAccelerometerEvent> Function()? motionEvents,
+    Stream<GyroscopeEvent> Function()? gyroscopeEvents,
+    Stream<Object?> Function()? stepEvents,
   }) : _headingCapability =
            headingCapability ?? const AndroidHeadingCapabilitySource(),
        _compassEvents = compassEvents ?? (() => FlutterCompass.events),
@@ -23,24 +26,41 @@ final class AndroidImuSensorSource implements ImuSensorSource {
            motionEvents ??
            (() => userAccelerometerEventStream(
              samplingPeriod: const Duration(milliseconds: 50),
-           ));
+           )),
+       _gyroscopeEvents =
+           gyroscopeEvents ??
+           (() => gyroscopeEventStream(
+             samplingPeriod: const Duration(milliseconds: 50),
+           )),
+       _stepEvents =
+           stepEvents ??
+           (() =>
+               const EventChannel('nadr/step_detector')
+                   .receiveBroadcastStream());
 
   final HeadingCapabilitySource _headingCapability;
   final Stream<CompassEvent>? Function() _compassEvents;
   final Stream<UserAccelerometerEvent> Function() _motionEvents;
+  final Stream<GyroscopeEvent> Function() _gyroscopeEvents;
+  final Stream<Object?> Function() _stepEvents;
   final _samples = StreamController<ImuSensorSample>.broadcast();
   final _statuses = StreamController<SensorStatus>.broadcast();
   StreamSubscription<UserAccelerometerEvent>? _motion;
+  StreamSubscription<GyroscopeEvent>? _gyroscope;
   StreamSubscription<CompassEvent>? _compass;
+  StreamSubscription<Object?>? _steps;
   Timer? _availabilityTimer;
   double? _heading;
+  double? _headingAccuracyDegrees;
+  double? _angularVelocityRadiansPerSecond;
   bool _hasMotion = false;
   bool _headingSupported = false;
   bool _headingUnavailableAnnounced = false;
-  bool _active = false;
+  SensorStatus? _operationalStatus;
   bool _started = false;
   bool _disposed = false;
   int _motionEventsSinceLog = 0;
+  int _detectedSteps = 0;
   DateTime? _lastMotionLogAt;
   DateTime? _startedAt;
   DateTime? _lastHeadingAt;
@@ -55,13 +75,16 @@ final class AndroidImuSensorSource implements ImuSensorSource {
     if (_disposed || _started) return;
     _started = true;
     _hasMotion = false;
-    _active = false;
     _heading = null;
+    _headingAccuracyDegrees = null;
+    _angularVelocityRadiansPerSecond = null;
     _headingSupported = false;
     _headingUnavailableAnnounced = false;
+    _operationalStatus = null;
     _startedAt = DateTime.now();
     _lastHeadingAt = null;
     _motionEventsSinceLog = 0;
+    _detectedSteps = 0;
     _lastMotionLogAt = null;
     _statuses.add(SensorStatus.starting);
     try {
@@ -85,12 +108,17 @@ final class AndroidImuSensorSource implements ImuSensorSource {
                 _markHeadingUnavailable('invalid_heading');
                 return;
               }
+              _headingAccuracyDegrees = normalizeHeadingAccuracy(
+                event.accuracy,
+              );
               _heading = normalized;
               _lastHeadingAt = DateTime.now();
               NadrDiagnostics.throttled(
                 'NADR_IMU_HEADING',
                 'compass',
-                'raw=$value normalized=$_heading sensorAt=${_lastHeadingAt!.toIso8601String()}',
+                'raw=$value normalized=$_heading accuracyDegrees=$_headingAccuracyDegrees '
+                    'quality=${headingQuality(_headingAccuracyDegrees)} '
+                    'sensorAt=${_lastHeadingAt!.toIso8601String()}',
               );
               _checkActive();
             },
@@ -121,6 +149,7 @@ final class AndroidImuSensorSource implements ImuSensorSource {
               'NADR_IMU_SENSOR',
               'events=$_motionEventsSinceLog intervalMs=${previousLogAt == null ? 0 : receivedAt.difference(previousLogAt).inMilliseconds} '
                   'x=${event.x} y=${event.y} z=${event.z} magnitude=$magnitude '
+                  'angularVelocityRadPerSec=$_angularVelocityRadiansPerSecond '
                   'received=${receivedAt.toIso8601String()}',
             );
             _motionEventsSinceLog = 0;
@@ -133,12 +162,71 @@ final class AndroidImuSensorSource implements ImuSensorSource {
               linearAccelerationY: event.y,
               linearAccelerationZ: event.z,
               heading: _heading,
+              headingAccuracyDegrees: _headingAccuracyDegrees,
+              angularVelocityRadiansPerSecond: _angularVelocityRadiansPerSecond,
               timestamp: DateTime.now(),
             ),
           );
         },
         onError: (Object error, StackTrace stackTrace) =>
             _fail(SensorStatus.error),
+      );
+      _gyroscope = _gyroscopeEvents().listen(
+        (event) {
+          if (!_started || _disposed) return;
+          if (!event.x.isFinite || !event.y.isFinite || !event.z.isFinite) {
+            return;
+          }
+          _angularVelocityRadiansPerSecond = math.sqrt(
+            event.x * event.x + event.y * event.y + event.z * event.z,
+          );
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          _angularVelocityRadiansPerSecond = null;
+          NadrDiagnostics.log(
+            'NADR_IMU_CAPABILITY',
+            'gyroscope=false error=$error',
+          );
+        },
+      );
+      _steps = _stepEvents().listen(
+        (event) {
+          if (!_started || _disposed || event is! Map) return;
+          final type = event['type'];
+          if (type == 'ready') {
+            NadrDiagnostics.log('NADR_IMU_CAPABILITY', 'stepDetector=true');
+            _checkActive();
+            return;
+          }
+          if (type != 'step') return;
+          _detectedSteps++;
+          final receivedAt = DateTime.now();
+          NadrDiagnostics.log(
+            'NADR_IMU_STEP',
+            'detected=true sessionSteps=$_detectedSteps '
+                'heading=$_heading accuracyDegrees=$_headingAccuracyDegrees '
+                'received=${receivedAt.toIso8601String()}',
+          );
+          _samples.add(
+            ImuSensorSample(
+              linearAccelerationX: 0,
+              linearAccelerationY: 0,
+              linearAccelerationZ: 0,
+              heading: _heading,
+              headingAccuracyDegrees: _headingAccuracyDegrees,
+              angularVelocityRadiansPerSecond: _angularVelocityRadiansPerSecond,
+              timestamp: receivedAt,
+              stepDetected: true,
+            ),
+          );
+          _checkActive();
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          NadrDiagnostics.log(
+            'NADR_IMU_CAPABILITY',
+            'stepDetector=false error=$error',
+          );
+        },
       );
       _availabilityTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!_started) return;
@@ -162,16 +250,19 @@ final class AndroidImuSensorSource implements ImuSensorSource {
   }
 
   void _checkActive() {
-    if (_started && !_active && _hasMotion && _heading != null) {
-      _active = true;
-      _headingUnavailableAnnounced = false;
-      _statuses.add(SensorStatus.active);
-    }
+    if (!_started || !_hasMotion || _heading == null) return;
+    final nextStatus = headingQuality(_headingAccuracyDegrees) == 'low'
+        ? SensorStatus.calibrating
+        : SensorStatus.active;
+    if (_operationalStatus == nextStatus) return;
+    _headingUnavailableAnnounced = false;
+    _operationalStatus = nextStatus;
+    _statuses.add(nextStatus);
   }
 
   void _markHeadingUnavailable(String reason) {
     _heading = null;
-    _active = false;
+    _operationalStatus = null;
     if (!_started || _headingUnavailableAnnounced) return;
     _headingUnavailableAnnounced = true;
     NadrDiagnostics.log(
@@ -184,6 +275,18 @@ final class AndroidImuSensorSource implements ImuSensorSource {
   static double? normalizeCompassHeading(double? heading) {
     if (heading == null || !heading.isFinite) return null;
     return ((heading % 360) + 360) % 360;
+  }
+
+  static double? normalizeHeadingAccuracy(double? accuracy) {
+    if (accuracy == null || !accuracy.isFinite || accuracy < 0) return null;
+    return accuracy;
+  }
+
+  static String headingQuality(double? accuracyDegrees) {
+    if (accuracyDegrees == null) return 'unknown';
+    if (accuracyDegrees <= 15) return 'high';
+    if (accuracyDegrees <= 30) return 'medium';
+    return 'low';
   }
 
   void _fail(SensorStatus status) {
@@ -200,14 +303,20 @@ final class AndroidImuSensorSource implements ImuSensorSource {
   Future<void> _stop({required bool emitStatus}) async {
     if (!_started) return;
     _started = false;
-    _active = false;
     _heading = null;
+    _headingAccuracyDegrees = null;
+    _angularVelocityRadiansPerSecond = null;
     _headingSupported = false;
+    _operationalStatus = null;
     _availabilityTimer?.cancel();
     await _motion?.cancel();
+    await _gyroscope?.cancel();
     await _compass?.cancel();
+    await _steps?.cancel();
     _motion = null;
+    _gyroscope = null;
     _compass = null;
+    _steps = null;
     if (!_disposed && emitStatus) _statuses.add(SensorStatus.stopped);
   }
 

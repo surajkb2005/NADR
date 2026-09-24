@@ -244,6 +244,58 @@ void main() {
     expect(readState().displayedPosition, same(gps));
     expect(readState().latestGpsPosition, same(gps));
   });
+
+  test('Prompt 10 route start follows the active navigation position', () {
+    final gps = position(PositionSource.gps, 12.9716, 77.5946);
+    final imu = position(PositionSource.imu, 12.9722, 77.5953);
+    controller.updateGpsPosition(gps);
+    controller.updateImuPosition(imu);
+
+    expect(readState().currentRouteStart, gps.coordinate);
+    controller.setNavigationMode(NavigationMode.imu);
+    expect(readState().currentRouteStart, imu.coordinate);
+    controller.setNavigationMode(NavigationMode.gps);
+    expect(readState().currentRouteStart, gps.coordinate);
+  });
+
+  test('route endpoint readiness is safe when current position is absent', () {
+    const destination = Destination(
+      coordinate: GeoCoordinate(latitude: 19.076, longitude: 72.8777),
+    );
+    expect(readState().currentRouteStart, isNull);
+    expect(readState().hasRouteEndpoints, isFalse);
+
+    controller.setDestination(destination);
+    expect(readState().destination, destination);
+    expect(readState().currentRouteStart, isNull);
+    expect(readState().hasRouteEndpoints, isFalse);
+
+    controller.updateGpsPosition(
+      position(PositionSource.gps, 12.9716, 77.5946),
+    );
+    expect(readState().hasRouteEndpoints, isTrue);
+  });
+
+  test('GPS and IMU updates preserve a confirmed destination', () {
+    const destination = Destination(
+      coordinate: GeoCoordinate(latitude: 18.5204, longitude: 73.8567),
+    );
+    controller.setDestination(destination);
+    controller.updateGpsPosition(
+      position(PositionSource.gps, 12.9716, 77.5946),
+    );
+    controller.updateImuPosition(position(PositionSource.imu, 12.972, 77.595));
+    controller.setNavigationMode(NavigationMode.imu);
+    controller.updateImuPosition(
+      PositionSample(
+        coordinate: const GeoCoordinate(latitude: 12.973, longitude: 77.596),
+        timestamp: DateTime.utc(2026, 9, 21, 12, 0, 1),
+        source: PositionSource.imu,
+      ),
+    );
+
+    expect(readState().destination, destination);
+  });
 }
 
 PositionSample position(

@@ -1,5 +1,6 @@
 import 'package:nadr_mobile/core/geo/navigation_mode.dart';
 import 'package:nadr_mobile/core/geo/position_sample.dart';
+import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
 import 'package:nadr_mobile/features/navigation/domain/connection_status.dart';
 import 'package:nadr_mobile/features/routing/domain/route_models.dart';
@@ -39,6 +40,27 @@ final class NavigationSessionState {
     NavigationMode.gps => latestGpsPosition,
     NavigationMode.imu => latestImuPosition,
   };
+
+  /// The route start Prompt 10 should use for the active navigation mode.
+  ///
+  /// Destination selection remains valid when this is null; no fallback
+  /// coordinate is invented.
+  GeoCoordinate? get currentRouteStart {
+    final coordinate = displayedPosition?.coordinate;
+    if (coordinate == null ||
+        !coordinate.latitude.isFinite ||
+        !coordinate.longitude.isFinite ||
+        coordinate.latitude < -90 ||
+        coordinate.latitude > 90 ||
+        coordinate.longitude < -180 ||
+        coordinate.longitude > 180) {
+      return null;
+    }
+    return coordinate;
+  }
+
+  bool get hasRouteEndpoints =>
+      currentRouteStart != null && destination != null;
 
   bool get hasGpsFix => latestGpsPosition != null;
 

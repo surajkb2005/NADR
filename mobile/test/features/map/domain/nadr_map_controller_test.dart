@@ -3,6 +3,7 @@ import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/features/map/domain/current_location_marker.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
+import 'package:nadr_mobile/features/destination/domain/destination.dart';
 
 void main() {
   test('controller contract represents camera and bounds operations', () async {
@@ -105,4 +106,7 @@ final class _RecordingMapController implements NadrMapController {
   ) async {
     operations.add('marker:${marker?.coordinate}:${marker?.visualMode.name}');
   }
+
+  @override
+  Future<void> updateDestinationMarker(Destination? destination) async {}
 }

@@ -11,7 +11,7 @@ import 'package:nadr_mobile/features/imu/infrastructure/android_imu_sensor_sourc
 import 'package:nadr_mobile/features/navigation/application/navigation_session_controller.dart';
 import 'package:nadr_mobile/features/navigation/domain/connection_status.dart';
 import 'package:nadr_mobile/features/navigation/domain/position_estimator.dart';
-import 'package:nadr_mobile/features/navigation/infrastructure/website_imu_position_estimator.dart';
+import 'package:nadr_mobile/features/navigation/infrastructure/step_based_imu_position_estimator.dart';
 
 final imuSensorSourceProvider = Provider<ImuSensorSource>((ref) {
   final source = AndroidImuSensorSource();
@@ -20,14 +20,29 @@ final imuSensorSourceProvider = Provider<ImuSensorSource>((ref) {
 });
 
 final imuPositionEstimatorProvider = Provider<PositionEstimator>((ref) {
-  return WebsiteImuPositionEstimator(
+  const configuredStepLengthText = String.fromEnvironment(
+    'NADR_IMU_STEP_LENGTH_METERS',
+    defaultValue: '0.65',
+  );
+  final configuredStepLength = double.tryParse(configuredStepLengthText);
+  final stepLength =
+      configuredStepLength != null &&
+          configuredStepLength.isFinite &&
+          configuredStepLength >=
+              StepBasedImuPositionEstimator.minimumConfiguredStepLengthMeters &&
+          configuredStepLength <=
+              StepBasedImuPositionEstimator.maximumConfiguredStepLengthMeters
+      ? configuredStepLength
+      : StepBasedImuPositionEstimator.defaultStepLengthMeters;
+  return StepBasedImuPositionEstimator(
+    stepLengthMeters: stepLength,
     onDiagnostic: (message) {
-      if (message.startsWith('stage=decay')) {
+      if (message.startsWith('stage=step')) {
         NadrDiagnostics.log('NADR_IMU_ESTIMATOR', message);
       } else {
         NadrDiagnostics.throttled(
           'NADR_IMU_ESTIMATOR',
-          'estimator_acceleration',
+          'estimator_tick',
           message,
         );
       }
@@ -136,8 +151,8 @@ final class ImuNavigationCoordinator extends Notifier<ImuNavigationState>
   void _onSample(ImuSensorSample sample) {
     if (!_running || _disposed || _paused || !_sensorReady) return;
     try {
-      // The website adds speed for every devicemotion event; its independent
-      // 200 ms timer only decays speed and advances position.
+      // Raw acceleration updates heading/diagnostics and drives the conservative
+      // software cadence fallback when the hardware detector stays silent.
       _estimator.estimate(sample);
       _eventsSinceTick++;
     } on Object {
@@ -162,7 +177,8 @@ final class ImuNavigationCoordinator extends Notifier<ImuNavigationState>
       );
       if (_sensorReady &&
           estimate.heading != null &&
-          state.phase != ImuNavigationPhase.active) {
+          state.phase != ImuNavigationPhase.active &&
+          state.phase != ImuNavigationPhase.calibrating) {
         ref
             .read(navigationSessionProvider.notifier)
             .setSensorStatus(SensorStatus.active);
@@ -202,12 +218,19 @@ final class ImuNavigationCoordinator extends Notifier<ImuNavigationState>
     if (_disposed || !_running) return;
     if (status == SensorStatus.active) {
       _sensorReady = true;
-      if (state.phase == ImuNavigationPhase.headingUnavailable) {
+      if (state.phase == ImuNavigationPhase.headingUnavailable ||
+          state.phase == ImuNavigationPhase.calibrating) {
         ref
             .read(navigationSessionProvider.notifier)
             .setSensorStatus(SensorStatus.starting);
         state = const ImuNavigationState(ImuNavigationPhase.starting);
       }
+    } else if (status == SensorStatus.calibrating) {
+      _sensorReady = true;
+      ref
+          .read(navigationSessionProvider.notifier)
+          .setSensorStatus(SensorStatus.calibrating);
+      state = const ImuNavigationState(ImuNavigationPhase.calibrating);
     } else if (status == SensorStatus.headingUnavailable) {
       _sensorReady = false;
       _eventsSinceTick = 0;
@@ -222,6 +245,7 @@ final class ImuNavigationCoordinator extends Notifier<ImuNavigationState>
       _fail(switch (status) {
         SensorStatus.headingUnavailable =>
           ImuNavigationPhase.headingUnavailable,
+        SensorStatus.calibrating => ImuNavigationPhase.calibrating,
         SensorStatus.unavailable => ImuNavigationPhase.unavailable,
         _ => ImuNavigationPhase.error,
       });
@@ -246,6 +270,7 @@ final class ImuNavigationCoordinator extends Notifier<ImuNavigationState>
         ImuNavigationPhase.unavailable => SensorStatus.unavailable,
         ImuNavigationPhase.headingUnavailable =>
           SensorStatus.headingUnavailable,
+        ImuNavigationPhase.calibrating => SensorStatus.calibrating,
         _ => SensorStatus.error,
       },
     );

@@ -78,7 +78,9 @@ class _BackendConnectivityPanelState
     final configured = ref.watch(appEnvironmentProvider).apiBaseUri;
     final visibleUrl = configured == null
         ? 'Not configured'
-        : configured.replace(userInfo: '', query: '', fragment: '').toString();
+        : configured
+              .replace(userInfo: '', query: null, fragment: null)
+              .toString();
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(20),

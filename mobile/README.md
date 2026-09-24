@@ -7,9 +7,10 @@ FastAPI services in later implementation prompts.
 The application currently includes its Material 3 map-first shell, a real
 interactive MapLibre map, foreground Android location, a geographic location
 marker, camera follow/recenter, manual GPS/experimental IMU modes, and a
-shared typed REST client with debug-only backend diagnostics. Routing UI,
-usable destination selection, OTP login UI, risk UI, simulation, and WebSocket
-integration remain unimplemented. See the [mobile development history](../docs/NADR_MOBILE_DEVELOPMENT_HISTORY.md)
+shared typed REST client with debug-only backend diagnostics. Destination
+selection and explicit requests to the existing backend `/route` endpoint are
+implemented; route map rendering, OTP login UI, risk UI, simulation, and
+WebSocket integration remain unimplemented. See the [mobile development history](../docs/NADR_MOBILE_DEVELOPMENT_HISTORY.md)
 for completed prompts, device findings, guardrails, and the current roadmap.
 
 ## Backend protection
@@ -61,6 +62,8 @@ development computer. For direct FastAPI development, use its HTTP(S) origin;
 for the repository's Nginx proxy, use the site origin plus `/api` because
 Nginx strips that prefix before forwarding. The client appends endpoint paths
 once, so do not put `/health`, `/route`, or a repeated `/api/api` in the base.
+An Android emulator can reach a backend on the development machine through
+the emulator-reserved alias `http://10.0.2.2:8000`; a physical phone cannot.
 For example, replacing the example hosts with your reachable host:
 
 ```sh
@@ -84,6 +87,13 @@ If the REST URL is omitted, the app starts normally and the debug panel reports
 “not configured.” The debug-only server icon on the map opens diagnostics for
 `GET /` and `GET /health`, with manual retry; an offline backend never blocks
 GPS, IMU, or map use.
+
+After a current position and destination are available, the navigation sheet's
+“Get route” action snapshots both coordinates and sends one `POST /route`
+request through the shared client. GPS/IMU updates do not automatically request
+routes. Prompt 10 stores the decoded normal, safe, drifted, and IMU alternatives
+for later rendering and shows only compact request status; polylines intentionally
+remain a later stage.
 
 `NADR_MAP_STYLE_URL` intentionally has no default because the repository does
 not choose a map provider or hold provider credentials. It must point to an

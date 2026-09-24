@@ -3,6 +3,7 @@ enum SensorStatus {
   headingUnavailable,
   stopped,
   starting,
+  calibrating,
   active,
   error,
 }

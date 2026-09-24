@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
+import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
 import 'package:nadr_mobile/features/map/presentation/widgets/maplibre_map_surface.dart';
 import 'package:nadr_mobile/shared/widgets/app_error_message.dart';
@@ -17,6 +18,7 @@ class InteractiveMapLayer extends StatefulWidget {
     required this.onControllerChanged,
     this.onStyleLoaded,
     this.onUserGesture,
+    this.onLongPress,
     this.configurationError,
     this.styleLoadTimeout = const Duration(seconds: 20),
     super.key,
@@ -29,6 +31,7 @@ class InteractiveMapLayer extends StatefulWidget {
   final ValueChanged<NadrMapController?> onControllerChanged;
   final VoidCallback? onStyleLoaded;
   final VoidCallback? onUserGesture;
+  final ValueChanged<GeoCoordinate>? onLongPress;
   final Duration styleLoadTimeout;
 
   @override
@@ -131,6 +134,7 @@ class _InteractiveMapLayerState extends State<InteractiveMapLayer> {
       onControllerReady: _handleControllerReady,
       onStyleLoaded: _handleStyleLoaded,
       onUserGesture: widget.onUserGesture ?? () {},
+      onLongPress: widget.onLongPress,
       onError: _showError,
     );
 
