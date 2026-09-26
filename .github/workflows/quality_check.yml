@@ -68,13 +68,14 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install --upgrade aiohttp PyJWT python-multipart
         pip install flake8 black pytest requests
 
     - name: Install pip-audit
       run: pip install pip-audit
 
     - name: Run Dependency Security Scan
-      run: pip-audit --ignore-vuln CVE-2025-71176 --ignore-vuln CVE-2025-54121 --ignore-vuln CVE-2025-62727 --ignore-vuln PYSEC-2023-228 --ignore-vuln CVE-2025-8869 --ignore-vuln CVE-2026-1703 --ignore-vuln CVE-2026-3219 --ignore-vuln PYSEC-2022-43012 --ignore-vuln PYSEC-2025-49 --ignore-vuln CVE-2024-6345
+      run: pip-audit
 
     - name: Run Formatter Check
       run: black --check .
