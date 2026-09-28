@@ -64,5 +64,30 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test(
+      'place search URL is optional and validated without crashing bootstrap',
+      () {
+        final missing = AppEnvironment(mapStyleUrl: '');
+        expect(missing.placeSearchBaseUri, isNull);
+        expect(missing.placeSearchConfigurationError, isNull);
+
+        final configured = AppEnvironment(
+          mapStyleUrl: '',
+          placeSearchBaseUrl: 'https://search.example.test/api',
+        );
+        expect(configured.placeSearchBaseUri?.host, 'search.example.test');
+
+        final invalid = AppEnvironment(
+          mapStyleUrl: '',
+          placeSearchBaseUrl: 'not-a-url',
+        );
+        expect(invalid.placeSearchBaseUri, isNull);
+        expect(
+          invalid.placeSearchConfigurationError,
+          contains('NADR_PLACE_SEARCH_BASE_URL'),
+        );
+      },
+    );
   });
 }

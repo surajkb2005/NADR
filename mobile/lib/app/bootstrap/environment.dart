@@ -10,11 +10,17 @@ final class AppEnvironment {
   factory AppEnvironment({
     String apiBaseUrl = '',
     String wsBaseUrl = '',
+    String placeSearchBaseUrl = '',
     required String mapStyleUrl,
   }) {
     final mapStyle = _parseOptionalUri(
       name: 'NADR_MAP_STYLE_URL',
       value: mapStyleUrl,
+      allowedSchemes: const {'http', 'https'},
+    );
+    final placeSearch = _parseOptionalUri(
+      name: 'NADR_PLACE_SEARCH_BASE_URL',
+      value: placeSearchBaseUrl,
       allowedSchemes: const {'http', 'https'},
     );
     return AppEnvironment._(
@@ -30,6 +36,8 @@ final class AppEnvironment {
       ),
       mapStyleUri: mapStyle.uri,
       mapStyleConfigurationError: mapStyle.error,
+      placeSearchBaseUri: placeSearch.uri,
+      placeSearchConfigurationError: placeSearch.error,
     );
   }
 
@@ -38,6 +46,8 @@ final class AppEnvironment {
     required this.wsBaseUri,
     required this.mapStyleUri,
     required this.mapStyleConfigurationError,
+    required this.placeSearchBaseUri,
+    required this.placeSearchConfigurationError,
   });
 
   factory AppEnvironment.fromDartDefines() {
@@ -45,6 +55,9 @@ final class AppEnvironment {
       apiBaseUrl: const String.fromEnvironment('NADR_API_BASE_URL'),
       wsBaseUrl: const String.fromEnvironment('NADR_WS_BASE_URL'),
       mapStyleUrl: const String.fromEnvironment('NADR_MAP_STYLE_URL'),
+      placeSearchBaseUrl: const String.fromEnvironment(
+        'NADR_PLACE_SEARCH_BASE_URL',
+      ),
     );
   }
 
@@ -52,6 +65,8 @@ final class AppEnvironment {
   final Uri? wsBaseUri;
   final Uri? mapStyleUri;
   final String? mapStyleConfigurationError;
+  final Uri? placeSearchBaseUri;
+  final String? placeSearchConfigurationError;
 
   bool get isMapStyleConfigured => mapStyleUri != null;
   bool get isApiConfigured => apiBaseUri != null;

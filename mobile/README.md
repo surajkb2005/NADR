@@ -107,6 +107,18 @@ GPS or IMU estimates drive the native geographic MapLibre marker through
 `displayedPosition`; camera follow, user exploration, and recenter are active.
 Map attribution comes from the configured style and remains visible.
 
+## Place search foundation
+
+The destination feature has a typed place-search result, repository interface,
+and debounced Riverpod controller. No place-search provider is selected yet, so
+search reports a controlled configuration error rather than sending requests.
+`NADR_PLACE_SEARCH_BASE_URL` is an optional Dart define reserved for the chosen
+provider's HTTP origin; setting it alone does not activate search. The provider
+endpoint, response schema, and authentication scheme must be agreed before a
+concrete adapter is added. Do not commit private credentials. A credential
+embedded in an Android app is not private, so a provider requiring a private
+server-side key needs an approved proxy or other suitable authentication design.
+
 ## Foreground location
 
 Android declares coarse and fine foreground location permissions. No
