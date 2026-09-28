@@ -10,6 +10,7 @@ import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
 import 'package:nadr_mobile/features/map/presentation/map_camera_follow_controller.dart';
 import 'package:nadr_mobile/features/navigation/domain/navigation_session_state.dart';
+import 'package:nadr_mobile/features/routing/domain/route_models.dart';
 
 void main() {
   late RecordingMapController map;
@@ -395,6 +396,9 @@ final class RecordingMapController implements NadrMapController {
   final cameraUpdates = <MapCameraUpdate>[];
   final recenterTargets = <GeoCoordinate>[];
   final recenterZooms = <double>[];
+
+  @override
+  Future<void> updateSelectedRoute(RouteAlternative? route) async {}
 
   void clear() {
     markerUpdates.clear();

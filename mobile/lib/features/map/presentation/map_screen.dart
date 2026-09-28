@@ -87,6 +87,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ref.read(navigationSessionProvider).destination,
         ),
       );
+      unawaited(
+        controller.updateSelectedRoute(
+          ref.read(navigationSessionProvider).selectedRoute,
+        ),
+      );
     }
   }
 
@@ -126,6 +131,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     await _cameraFollowController.restoreMarkerAfterStyleReload();
     await _mapController?.updateDestinationMarker(
       ref.read(navigationSessionProvider).destination,
+    );
+    await _mapController?.updateSelectedRoute(
+      ref.read(navigationSessionProvider).selectedRoute,
     );
   }
 
@@ -189,6 +197,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     ) {
       unawaited(_mapController?.updateDestinationMarker(next));
     });
+    ref.listen(
+      navigationSessionProvider.select((state) => state.selectedRoute),
+      (previous, next) {
+        unawaited(_mapController?.updateSelectedRoute(next));
+      },
+    );
 
     final environment = ref.watch(appEnvironmentProvider);
     final mapSurfaceBuilder = ref.watch(mapSurfaceBuilderProvider);

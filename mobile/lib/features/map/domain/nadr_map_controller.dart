@@ -2,6 +2,7 @@ import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/features/map/domain/current_location_marker.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
+import 'package:nadr_mobile/features/routing/domain/route_models.dart';
 
 /// A programmatic camera animation was superseded, not a location failure.
 final class MapCameraAnimationCancelled implements Exception {
@@ -33,6 +34,8 @@ abstract interface class NadrMapController {
   Future<void> updateCurrentLocationMarker(CurrentLocationMarkerData? marker);
 
   Future<void> updateDestinationMarker(Destination? destination);
+
+  Future<void> updateSelectedRoute(RouteAlternative? route);
 
   Future<void> recenter(
     GeoCoordinate center, {

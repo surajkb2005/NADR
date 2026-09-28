@@ -456,11 +456,15 @@ void main() {
     expect(adapter.requests, 1);
   });
 
-  testWidgets('automatic route request stores data without a map layer', (
+  testWidgets('automatic route request updates selected map geometry', (
     tester,
   ) async {
     final repository = _WidgetRouteRepository();
-    final configured = _configuredContainer(routeRepository: repository);
+    final mapController = _RecordingMapController();
+    final configured = _configuredContainer(
+      routeRepository: repository,
+      mapController: mapController,
+    );
     addTearDown(configured.dispose);
     final session = configured.read(navigationSessionProvider.notifier);
     session.updateGpsPosition(
@@ -487,9 +491,35 @@ void main() {
     );
     expect(find.text('Route data received (1 alternatives).'), findsOneWidget);
     expect(
-      find.text('Route map rendering is coming in the next stage.'),
-      findsOneWidget,
+      mapController.routeUpdates.last,
+      same(configured.read(navigationSessionProvider).selectedRoute),
     );
+    final normal = configured.read(navigationSessionProvider).selectedRoute!;
+    final safe = RouteAlternative(
+      mode: RouteMode.safe,
+      path: const [
+        GeoCoordinate(latitude: 12.1, longitude: 77.2),
+        GeoCoordinate(latitude: 12.2, longitude: 77.3),
+        GeoCoordinate(latitude: 12.3, longitude: 77.4),
+      ],
+      metrics: const RouteMetrics(),
+    );
+    session.setRouteAlternatives(
+      RouteAlternatives(
+        byMode: {RouteMode.normal: normal, RouteMode.safe: safe},
+      ),
+    );
+    session.selectRoute(RouteMode.safe);
+    await tester.pumpAndSettle();
+    expect(mapController.routeUpdates.last, same(safe));
+    final updateCount = mapController.routeUpdates.length;
+    session.setNavigationMode(domain.NavigationMode.imu);
+    session.setNavigationMode(domain.NavigationMode.gps);
+    await tester.pumpAndSettle();
+    expect(mapController.routeUpdates.length, updateCount);
+    session.clearDestination();
+    await tester.pumpAndSettle();
+    expect(mapController.routeUpdates.last, isNull);
   });
 
   testWidgets(
@@ -617,7 +647,13 @@ class _FakeMapSurfaceState extends State<_FakeMapSurface> {
 
 final class _RecordingMapController implements NadrMapController {
   final destinationUpdates = <Destination?>[];
+  final routeUpdates = <RouteAlternative?>[];
   MapCameraState? camera;
+
+  @override
+  Future<void> updateSelectedRoute(RouteAlternative? route) async {
+    routeUpdates.add(route);
+  }
 
   @override
   MapCameraState? get currentCamera => camera;

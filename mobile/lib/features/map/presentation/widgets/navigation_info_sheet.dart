@@ -142,15 +142,6 @@ class _NavigationInfoContent extends StatelessWidget {
             ),
           ),
         ],
-        if (routeRequestState.phase == RouteRequestPhase.success) ...[
-          const SizedBox(height: 4),
-          Text(
-            'Route map rendering is coming in the next stage.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
       ],
     );
   }

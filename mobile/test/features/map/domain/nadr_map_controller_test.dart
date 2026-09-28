@@ -4,6 +4,7 @@ import 'package:nadr_mobile/features/map/domain/current_location_marker.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
+import 'package:nadr_mobile/features/routing/domain/route_models.dart';
 
 void main() {
   test('controller contract represents camera and bounds operations', () async {
@@ -109,4 +110,7 @@ final class _RecordingMapController implements NadrMapController {
 
   @override
   Future<void> updateDestinationMarker(Destination? destination) async {}
+
+  @override
+  Future<void> updateSelectedRoute(RouteAlternative? route) async {}
 }
