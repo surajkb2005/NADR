@@ -131,6 +131,44 @@ void main() {
   });
 
   test(
+    'fallback from repository leaves destination but no selected route',
+    () async {
+      final repository = _RecordingRouteRepository(
+        result: Future.value(
+          RouteAlternatives(
+            byMode: {
+              RouteMode.normal: RouteAlternative(
+                mode: RouteMode.normal,
+                path: const [
+                  GeoCoordinate(latitude: 12.1, longitude: 77.2),
+                  GeoCoordinate(latitude: 12.3, longitude: 77.4),
+                ],
+                metrics: const RouteMetrics(),
+                optimization: 'fallback',
+              ),
+            },
+          ),
+        ),
+      );
+      final container = _readyContainer(repository);
+      addTearDown(container.dispose);
+      final outcome = await container
+          .read(routeRequestControllerProvider.notifier)
+          .requestRoute();
+      expect(outcome, RouteRequestOutcome.failed);
+      final session = container.read(navigationSessionProvider);
+      expect(session.destination, isNotNull);
+      expect(session.selectedRoute, isNull);
+      expect(session.routeAlternatives.isEmpty, isTrue);
+      expect(
+        container.read(routeRequestControllerProvider).phase,
+        RouteRequestPhase.failure,
+      );
+      expect(session.errorMessage, contains('straight-line fallback'));
+    },
+  );
+
+  test(
     'success stores all alternatives and compact status in session',
     () async {
       final repository = _RecordingRouteRepository();

@@ -137,12 +137,27 @@ final class RouteRequestController extends Notifier<RouteRequestState> {
         mode: RouteMode.normal,
       );
       if (!_isCurrent(generation)) return RouteRequestOutcome.cancelled;
-      session.setRouteAlternatives(alternatives);
-      final preferred = alternatives[RouteMode.normal] != null
+      final accepted = RouteAlternatives(
+        byMode: {
+          for (final entry in alternatives.byMode.entries)
+            if (entry.value.isRenderableRoadRoute) entry.key: entry.value,
+        },
+        metadata: alternatives.metadata,
+      );
+      if (accepted.isEmpty) {
+        throw NadrNetworkException(
+          alternatives.byMode.values.any((route) => route.isBackendFallback)
+              ? NadrNetworkErrorKind.fallbackRoute
+              : NadrNetworkErrorKind.noRoute,
+          'No usable road route was returned.',
+        );
+      }
+      session.setRouteAlternatives(accepted);
+      final preferred = accepted[RouteMode.normal] != null
           ? RouteMode.normal
-          : alternatives.byMode.keys.first;
+          : accepted.byMode.keys.first;
       session.selectRoute(preferred);
-      final count = alternatives.byMode.length;
+      final count = accepted.byMode.length;
       state = RouteRequestState(
         phase: RouteRequestPhase.success,
         message: 'Route data received ($count alternatives).',
@@ -191,6 +206,10 @@ final class RouteRequestController extends Notifier<RouteRequestState> {
       'The backend could not calculate the route. Try again.',
     NadrNetworkErrorKind.invalidResponse =>
       'The backend returned invalid route data.',
+    NadrNetworkErrorKind.noRoute =>
+      'No route is available for this destination. Try again.',
+    NadrNetworkErrorKind.fallbackRoute =>
+      'Only a straight-line fallback is available. Try again for a road route.',
     NadrNetworkErrorKind.unauthorized =>
       'Authentication is required before requesting a route.',
     NadrNetworkErrorKind.httpFailure =>

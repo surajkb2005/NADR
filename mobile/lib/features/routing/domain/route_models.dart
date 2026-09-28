@@ -52,6 +52,23 @@ final class RouteAlternative {
   final String? optimization;
   final double? riskWeight;
   final String? description;
+
+  bool get isBackendFallback => optimization == 'fallback';
+
+  bool get hasUsableGeometry =>
+      path.length >= 2 &&
+      path.every(
+        (point) =>
+            point.latitude.isFinite &&
+            point.longitude.isFinite &&
+            point.latitude >= -90 &&
+            point.latitude <= 90 &&
+            point.longitude >= -180 &&
+            point.longitude <= 180,
+      ) &&
+      path.skip(1).any((point) => point != path.first);
+
+  bool get isRenderableRoadRoute => hasUsableGeometry && !isBackendFallback;
 }
 
 final class RouteMetadata {

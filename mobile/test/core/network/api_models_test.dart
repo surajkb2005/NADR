@@ -57,18 +57,17 @@ void main() {
     expect(route.alternatives['safe']!.path, isEmpty);
     expect(route.alternatives['safe']!.distanceMeters, isNull);
     expect(route.metadata!.source, 'OSRM Public API');
-    expect(
-      () => ApiRouteResponse.fromJson({
-        'alternatives': {
-          'normal': {
-            'path': [
-              [1.0],
-            ],
-          },
+    final malformed = ApiRouteResponse.fromJson({
+      'alternatives': {
+        'normal': {
+          'path': [
+            [1.0],
+          ],
         },
-      }),
-      throwsA(isA<ApiDecodingException>()),
-    );
+      },
+    });
+    expect(malformed.alternatives, isEmpty);
+    expect(malformed.invalidAlternatives, 1);
     expect(
       () => ApiRouteResponse.fromJson({'metadata': {}}),
       throwsA(isA<ApiDecodingException>()),
