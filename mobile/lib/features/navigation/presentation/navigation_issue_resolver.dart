@@ -73,6 +73,18 @@ abstract final class NavigationIssueResolver {
 
     if (mode == domain.NavigationMode.imu && imu != null) {
       final imuIssue = switch (imu.phase) {
+        ImuNavigationPhase.waitingForGps => const NavigationIssue(
+          message: 'Waiting for a GPS fix before IMU navigation.',
+          severity: IssueSeverity.info,
+        ),
+        ImuNavigationPhase.starting => const NavigationIssue(
+          message: 'Starting IMU sensors…',
+          severity: IssueSeverity.info,
+        ),
+        ImuNavigationPhase.calibrating => const NavigationIssue(
+          message: 'Calibrating IMU heading…',
+          severity: IssueSeverity.info,
+        ),
         ImuNavigationPhase.unavailable => const NavigationIssue(
           message: 'IMU sensors are unavailable on this device.',
           severity: IssueSeverity.error,

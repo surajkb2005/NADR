@@ -53,4 +53,24 @@ void main() {
     await tester.pumpWidget(_wrap(const DedupIssueBanner()));
     expect(find.byKey(const ValueKey('nav-issue-banner')), findsNothing);
   });
+
+  testWidgets('long issue with action fits a narrow screen', (tester) async {
+    tester.view.physicalSize = const Size(320, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      _wrap(
+        DedupIssueBanner(
+          issue: NavigationIssue(
+            message: 'The current location update failed and the device cannot provide a usable GPS fix right now.',
+            actionLabel: 'Retry',
+            onAction: () {},
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const ValueKey('nav-issue-banner')), findsOneWidget);
+  });
 }

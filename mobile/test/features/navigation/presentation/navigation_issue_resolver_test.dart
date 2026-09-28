@@ -121,4 +121,93 @@ void main() {
 
     expect(issue, isNull);
   });
+
+  test('blocked permission offers no action without a real callback', () {
+    final issue = NavigationIssueResolver.resolve(
+      mode: domain.NavigationMode.gps,
+      location: const DeviceLocationState(
+        permissionStatus: LocationPermissionStatus.deniedForever,
+      ),
+      destination: _destination,
+      routeRequest: const RouteRequestState(),
+    );
+    expect(issue?.message, 'Location permission is blocked for this app.');
+    expect(issue?.onAction, isNull);
+    expect(issue?.actionLabel, isNull);
+  });
+
+  test('IMU initialization phases are informational', () {
+    for (final phase in [
+      ImuNavigationPhase.waitingForGps,
+      ImuNavigationPhase.starting,
+      ImuNavigationPhase.calibrating,
+    ]) {
+      final issue = NavigationIssueResolver.resolve(
+        mode: domain.NavigationMode.imu,
+        location: const DeviceLocationState(
+          permissionStatus: LocationPermissionStatus.granted,
+        ),
+        imu: ImuNavigationState(phase),
+        destination: _destination,
+        routeRequest: const RouteRequestState(),
+      );
+      expect(issue?.severity, IssueSeverity.info);
+    }
+  });
+
+  test('IMU unavailable and sensor error are surfaced', () {
+    for (final phase in [
+      ImuNavigationPhase.unavailable,
+      ImuNavigationPhase.error,
+    ]) {
+      final issue = NavigationIssueResolver.resolve(
+        mode: domain.NavigationMode.imu,
+        location: const DeviceLocationState(
+          permissionStatus: LocationPermissionStatus.granted,
+        ),
+        imu: ImuNavigationState(phase),
+        destination: _destination,
+        routeRequest: const RouteRequestState(),
+      );
+      expect(issue?.severity, IssueSeverity.error);
+    }
+  });
+
+  test('route idle, loading, empty and success do not invent issues', () {
+    for (final request in [
+      const RouteRequestState(),
+      const RouteRequestState(phase: RouteRequestPhase.loading),
+      const RouteRequestState(phase: RouteRequestPhase.success),
+      const RouteRequestState(
+        phase: RouteRequestPhase.success,
+        alternativeCount: 1,
+      ),
+    ]) {
+      final issue = NavigationIssueResolver.resolve(
+        mode: domain.NavigationMode.gps,
+        location: const DeviceLocationState(
+          permissionStatus: LocationPermissionStatus.granted,
+          trackingStatus: LocationTrackingStatus.active,
+        ),
+        destination: _destination,
+        routeRequest: request,
+      );
+      expect(issue, isNull);
+    }
+  });
+
+  test('route failure without callback has no retry action', () {
+    final issue = NavigationIssueResolver.resolve(
+      mode: domain.NavigationMode.gps,
+      location: const DeviceLocationState(
+        permissionStatus: LocationPermissionStatus.granted,
+        trackingStatus: LocationTrackingStatus.active,
+      ),
+      destination: _destination,
+      routeRequest: const RouteRequestState(phase: RouteRequestPhase.failure),
+    );
+    expect(issue?.message, 'Unable to get a route.');
+    expect(issue?.onAction, isNull);
+    expect(issue?.actionLabel, isNull);
+  });
 }
