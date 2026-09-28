@@ -14,12 +14,16 @@ class RouteInfoCard extends StatelessWidget {
   const RouteInfoCard({
     required this.requestState,
     this.selectedRoute,
+    this.alternatives,
+    this.onSelectRoute,
     this.onRetry,
     super.key,
   });
 
   final RouteRequestState requestState;
   final RouteAlternative? selectedRoute;
+  final RouteAlternatives? alternatives;
+  final ValueChanged<RouteMode>? onSelectRoute;
   final VoidCallback? onRetry;
 
   @override
@@ -126,7 +130,7 @@ class RouteInfoCard extends StatelessWidget {
         );
 
       case RouteRequestPhase.success:
-        if (requestState.alternativeCount == 0 || selectedRoute == null) {
+        if (requestState.alternativeCount == 0) {
           return Text(
             'No routes were returned for this destination.',
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -134,7 +138,42 @@ class RouteInfoCard extends StatelessWidget {
             ),
           );
         }
-        return _metricsRow(theme, selectedRoute!);
+        if (selectedRoute == null) {
+          return Text(
+            'No route selected.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${selectedRoute!.mode.name} route',
+              style: theme.textTheme.labelLarge,
+            ),
+            if (alternatives != null && alternatives!.byMode.length > 1) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final mode in alternatives!.byMode.keys)
+                    ChoiceChip(
+                      label: Text(mode.name),
+                      selected: selectedRoute!.mode == mode,
+                      onSelected: onSelectRoute == null
+                          ? null
+                          : (_) => onSelectRoute!(mode),
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 8),
+            _metricsRow(theme, selectedRoute!),
+          ],
+        );
     }
   }
 

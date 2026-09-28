@@ -108,6 +108,23 @@ void main() {
     );
   });
 
+  testWidgets(
+    'success without a selected route does not claim an empty result',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          const RouteInfoCard(
+            requestState: RouteRequestState(
+              phase: RouteRequestPhase.success,
+              alternativeCount: 2,
+            ),
+          ),
+        ),
+      );
+      expect(find.text('No route selected.'), findsOneWidget);
+    },
+  );
+
   testWidgets('success with full metrics shows distance, eta, and risk', (
     tester,
   ) async {
@@ -153,4 +170,59 @@ void main() {
       );
     },
   );
+
+  testWidgets('multiple alternatives show real modes and select callback', (
+    tester,
+  ) async {
+    final normal = _route(distance: 1000);
+    final safe = RouteAlternative(
+      mode: RouteMode.safe,
+      path: const [],
+      metrics: const RouteMetrics(distanceMeters: 1200),
+    );
+    RouteMode? selected;
+    await tester.pumpWidget(
+      _wrap(
+        RouteInfoCard(
+          requestState: const RouteRequestState(
+            phase: RouteRequestPhase.success,
+            alternativeCount: 2,
+          ),
+          selectedRoute: normal,
+          alternatives: RouteAlternatives(
+            byMode: {RouteMode.normal: normal, RouteMode.safe: safe},
+          ),
+          onSelectRoute: (mode) => selected = mode,
+        ),
+      ),
+    );
+    expect(find.text('normal route'), findsOneWidget);
+    expect(find.text('normal'), findsOneWidget);
+    await tester.tap(find.text('safe'));
+    expect(selected, RouteMode.safe);
+  });
+
+  testWidgets('route metrics fit a narrow layout with absent ETA and risk', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      _wrap(
+        RouteInfoCard(
+          requestState: const RouteRequestState(
+            phase: RouteRequestPhase.success,
+            alternativeCount: 1,
+          ),
+          selectedRoute: _route(distance: 4200),
+        ),
+      ),
+    );
+    expect(find.text('4.2 km'), findsOneWidget);
+    expect(find.text('15 min'), findsNothing);
+    expect(find.text('Medium risk'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -44,4 +44,21 @@ void main() {
     expect(find.text('MG Road'), findsOneWidget);
     expect(find.text('12.97, 77.59'), findsOneWidget);
   });
+
+  testWidgets('long label fits a narrow card without overflow', (tester) async {
+    tester.view.physicalSize = const Size(320, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const destination = Destination(
+      coordinate: GeoCoordinate(latitude: 12.97, longitude: 77.59),
+      displayLabel:
+          'A very long destination label that exceeds the available width',
+    );
+    await tester.pumpWidget(
+      _wrap(const DestinationInfoCard(destination: destination)),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('12.97, 77.59'), findsOneWidget);
+  });
 }
