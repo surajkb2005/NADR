@@ -494,6 +494,7 @@ void main() {
       mapController.routeUpdates.last,
       same(configured.read(navigationSessionProvider).selectedRoute),
     );
+    expect(mapController.routeFits, hasLength(1));
     final normal = configured.read(navigationSessionProvider).selectedRoute!;
     final safe = RouteAlternative(
       mode: RouteMode.safe,
@@ -512,14 +513,17 @@ void main() {
     session.selectRoute(RouteMode.safe);
     await tester.pumpAndSettle();
     expect(mapController.routeUpdates.last, same(safe));
+    expect(mapController.routeFits, hasLength(2));
     final updateCount = mapController.routeUpdates.length;
     session.setNavigationMode(domain.NavigationMode.imu);
     session.setNavigationMode(domain.NavigationMode.gps);
     await tester.pumpAndSettle();
     expect(mapController.routeUpdates.length, updateCount);
+    expect(mapController.routeFits, hasLength(2));
     session.clearDestination();
     await tester.pumpAndSettle();
     expect(mapController.routeUpdates.last, isNull);
+    expect(mapController.routeFits, hasLength(2));
   });
 
   testWidgets(
@@ -648,6 +652,7 @@ class _FakeMapSurfaceState extends State<_FakeMapSurface> {
 final class _RecordingMapController implements NadrMapController {
   final destinationUpdates = <Destination?>[];
   final routeUpdates = <RouteAlternative?>[];
+  final routeFits = <MapBounds>[];
   MapCameraState? camera;
 
   @override
@@ -679,7 +684,9 @@ final class _RecordingMapController implements NadrMapController {
     MapBounds bounds, {
     MapViewportPadding padding = const MapViewportPadding(),
     Duration duration = const Duration(milliseconds: 700),
-  }) async {}
+  }) async {
+    routeFits.add(bounds);
+  }
 
   @override
   Future<void> moveCamera(MapCameraUpdate update) => animateCamera(update);

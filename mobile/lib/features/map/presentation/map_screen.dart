@@ -16,6 +16,7 @@ import 'package:nadr_mobile/features/imu/application/imu_navigation_state.dart';
 import 'package:nadr_mobile/features/map/domain/map_defaults.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
 import 'package:nadr_mobile/features/map/presentation/map_camera_follow_controller.dart';
+import 'package:nadr_mobile/features/map/presentation/route_camera_fit.dart';
 import 'package:nadr_mobile/features/map/presentation/widgets/interactive_map_layer.dart';
 import 'package:nadr_mobile/features/map/presentation/widgets/maplibre_map_surface.dart';
 import 'package:nadr_mobile/features/map/presentation/widgets/navigation_info_sheet.dart';
@@ -24,6 +25,7 @@ import 'package:nadr_mobile/features/location/application/location_coordinator.d
 import 'package:nadr_mobile/features/location/presentation/location_status_indicator.dart';
 import 'package:nadr_mobile/features/navigation/application/navigation_session_controller.dart';
 import 'package:nadr_mobile/features/routing/application/route_request_controller.dart';
+import 'package:nadr_mobile/features/routing/domain/route_models.dart';
 import 'package:nadr_mobile/shared/widgets/app_error_message.dart';
 import 'package:nadr_mobile/shared/widgets/compact_status_chip.dart';
 
@@ -81,6 +83,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (controller == null) {
       _cameraFollowController.detachMapController(previousController);
     } else {
+      final route = ref.read(navigationSessionProvider).selectedRoute;
+      unawaited(
+        _cameraFollowController.previewSelectedRoute(
+          route,
+          _cameraFitFor(route),
+        ),
+      );
       unawaited(_cameraFollowController.attachMapController(controller));
       unawaited(
         controller.updateDestinationMarker(
@@ -134,6 +143,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
     await _mapController?.updateSelectedRoute(
       ref.read(navigationSessionProvider).selectedRoute,
+    );
+    await _cameraFollowController.retryPendingRouteFit();
+  }
+
+  RouteCameraFit? _cameraFitFor(RouteAlternative? route) {
+    final session = ref.read(navigationSessionProvider);
+    final media = MediaQuery.of(context);
+    return RouteCameraFit.forRoute(
+      route: route,
+      start: session.currentRouteStart,
+      destination: session.destination?.coordinate,
+      viewportWidth: media.size.width,
+      viewportHeight: media.size.height,
+      topInset: media.padding.top,
+      bottomInset: media.padding.bottom,
     );
   }
 
@@ -201,6 +225,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       navigationSessionProvider.select((state) => state.selectedRoute),
       (previous, next) {
         unawaited(_mapController?.updateSelectedRoute(next));
+        unawaited(
+          _cameraFollowController.previewSelectedRoute(
+            next,
+            _cameraFitFor(next),
+          ),
+        );
       },
     );
 

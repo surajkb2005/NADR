@@ -9,6 +9,7 @@ import 'package:nadr_mobile/features/map/domain/map_camera.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
 import 'package:nadr_mobile/features/map/presentation/map_camera_follow_controller.dart';
+import 'package:nadr_mobile/features/map/presentation/route_camera_fit.dart';
 import 'package:nadr_mobile/features/navigation/domain/navigation_session_state.dart';
 import 'package:nadr_mobile/features/routing/domain/route_models.dart';
 
@@ -375,7 +376,109 @@ void main() {
       delayed.dispose();
     },
   );
+
+  test('route preview fits once and recenter restores following', () async {
+    final route = _previewRoute(RouteMode.normal, 12);
+    final safe = _previewRoute(RouteMode.safe, 13);
+    await follow.updateFromSession(
+      NavigationSessionState(
+        latestGpsPosition: sample(PositionSource.gps, 12.97, 77.59),
+      ),
+    );
+    map.clear();
+    await follow.previewSelectedRoute(route, _previewFit);
+    expect(map.routeFits, hasLength(1));
+    expect(follow.followMode, MapCameraFollowMode.userExplore);
+    await follow.previewSelectedRoute(route, _previewFit);
+    await follow.updateFromSession(
+      NavigationSessionState(
+        latestGpsPosition: sample(PositionSource.gps, 12.98, 77.60),
+      ),
+    );
+    expect(map.routeFits, hasLength(1));
+    expect(map.cameraUpdates, isEmpty);
+    await follow.previewSelectedRoute(safe, _previewFit);
+    expect(map.routeFits, hasLength(2));
+    await follow.previewSelectedRoute(null, null);
+    expect(map.routeFits, hasLength(2));
+    expect(await follow.recenter(), RecenterOutcome.success);
+    expect(follow.followMode, MapCameraFollowMode.following);
+    await follow.updateFromSession(
+      NavigationSessionState(
+        latestGpsPosition: sample(PositionSource.gps, 13.2, 77.8),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+    expect(map.cameraUpdates, isNotEmpty);
+  });
+
+  test('route selected before map ready fits once on attachment', () async {
+    final delayed = MapCameraFollowController();
+    await delayed.previewSelectedRoute(
+      _previewRoute(RouteMode.normal, 12),
+      _previewFit,
+    );
+    final delayedMap = RecordingMapController();
+    await delayed.attachMapController(delayedMap);
+    await delayed.retryPendingRouteFit();
+    expect(delayedMap.routeFits, hasLength(1));
+    delayed.dispose();
+  });
+
+  test('failed fit stays pending until style is ready', () async {
+    map.fitFailure = StateError('not ready');
+    await follow.previewSelectedRoute(
+      _previewRoute(RouteMode.normal, 12),
+      _previewFit,
+    );
+    expect(map.routeFits, hasLength(1));
+    map.fitFailure = null;
+    await follow.retryPendingRouteFit();
+    expect(map.routeFits, hasLength(2));
+    await follow.retryPendingRouteFit();
+    expect(map.routeFits, hasLength(2));
+  });
+
+  test('recenter requested during route fit wins the camera', () async {
+    await follow.updateFromSession(
+      NavigationSessionState(
+        latestGpsPosition: sample(PositionSource.gps, 12.97, 77.59),
+      ),
+    );
+    final gate = Completer<void>();
+    map.fitGate = gate;
+    final preview = follow.previewSelectedRoute(
+      _previewRoute(RouteMode.normal, 12),
+      _previewFit,
+    );
+    expect(map.routeFits, hasLength(1));
+    final recenter = follow.recenter();
+    expect(map.recenterTargets, isEmpty);
+    gate.complete();
+    await preview;
+    expect(await recenter, RecenterOutcome.success);
+    expect(map.recenterTargets, hasLength(1));
+    expect(follow.followMode, MapCameraFollowMode.following);
+  });
 }
+
+const _previewFit = RouteCameraFit(
+  bounds: MapBounds(
+    southWest: GeoCoordinate(latitude: 11, longitude: 76),
+    northEast: GeoCoordinate(latitude: 14, longitude: 79),
+  ),
+  padding: MapViewportPadding(top: 120, bottom: 240),
+);
+
+RouteAlternative _previewRoute(RouteMode mode, double latitude) =>
+    RouteAlternative(
+      mode: mode,
+      path: [
+        GeoCoordinate(latitude: latitude, longitude: 77),
+        GeoCoordinate(latitude: latitude + 1, longitude: 78),
+      ],
+      metrics: const RouteMetrics(),
+    );
 
 PositionSample sample(
   PositionSource source,
@@ -396,6 +499,9 @@ final class RecordingMapController implements NadrMapController {
   final cameraUpdates = <MapCameraUpdate>[];
   final recenterTargets = <GeoCoordinate>[];
   final recenterZooms = <double>[];
+  final routeFits = <MapBounds>[];
+  Object? fitFailure;
+  Completer<void>? fitGate;
 
   @override
   Future<void> updateSelectedRoute(RouteAlternative? route) async {}
@@ -405,6 +511,7 @@ final class RecordingMapController implements NadrMapController {
     cameraUpdates.clear();
     recenterTargets.clear();
     recenterZooms.clear();
+    routeFits.clear();
   }
 
   @override
@@ -426,7 +533,11 @@ final class RecordingMapController implements NadrMapController {
     MapBounds bounds, {
     MapViewportPadding padding = const MapViewportPadding(),
     Duration duration = const Duration(milliseconds: 700),
-  }) async {}
+  }) async {
+    routeFits.add(bounds);
+    await fitGate?.future;
+    if (fitFailure case final error?) throw error;
+  }
 
   @override
   Future<void> moveCamera(MapCameraUpdate update) async {}
