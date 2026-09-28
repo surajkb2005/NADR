@@ -4,6 +4,7 @@ import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/core/geo/navigation_mode.dart';
 import 'package:nadr_mobile/core/geo/position_sample.dart';
 import 'package:nadr_mobile/features/imu/application/imu_navigation_state.dart';
+import 'package:nadr_mobile/features/location/domain/device_location_state.dart';
 import 'package:nadr_mobile/features/navigation/domain/navigation_session_state.dart';
 import 'package:nadr_mobile/features/navigation/presentation/navigation_status_panel.dart';
 
@@ -124,6 +125,76 @@ void main() {
     await tester.pumpWidget(_wrap(NavigationStatusPanel(data: data)));
     await tester.pumpAndSettle();
 
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'GPS tracking state distinguishes waiting, active, and unavailable',
+    (tester) async {
+      for (final (status, label) in [
+        (LocationTrackingStatus.acquiring, 'GPS waiting'),
+        (LocationTrackingStatus.active, 'GPS tracking'),
+        (LocationTrackingStatus.error, 'GPS unavailable'),
+      ]) {
+        final data = NavigationStatusData.fromSessionState(
+          session: NavigationSessionState(),
+          locationState: DeviceLocationState(trackingStatus: status),
+        );
+        await tester.pumpWidget(_wrap(NavigationStatusPanel(data: data)));
+        expect(find.text(label), findsOneWidget);
+      }
+    },
+  );
+
+  testWidgets('disabled service overrides active tracking', (tester) async {
+    final data = NavigationStatusData.fromSessionState(
+      session: NavigationSessionState(),
+      locationState: const DeviceLocationState(
+        serviceStatus: LocationServiceStatus.disabled,
+        trackingStatus: LocationTrackingStatus.active,
+      ),
+    );
+    await tester.pumpWidget(_wrap(NavigationStatusPanel(data: data)));
+    expect(find.text('GPS unavailable'), findsOneWidget);
+  });
+
+  testWidgets('invalid GPS accuracy remains unknown', (tester) async {
+    final data = NavigationStatusData.fromSessionState(
+      session: NavigationSessionState(
+        latestGpsPosition: _sample(accuracy: double.nan),
+      ),
+    );
+    await tester.pumpWidget(_wrap(NavigationStatusPanel(data: data)));
+    expect(find.text('Accuracy unknown'), findsOneWidget);
+  });
+
+  testWidgets('unknown location state remains unlabelled', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        NavigationStatusPanel(
+          data: NavigationStatusData.fromSessionState(
+            session: NavigationSessionState(),
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(const ValueKey('nav-status-tracking')), findsNothing);
+  });
+
+  testWidgets('narrow GPS layout with tracking label does not overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final data = NavigationStatusData.fromSessionState(
+      session: NavigationSessionState(latestGpsPosition: _sample(accuracy: 12)),
+      locationState: const DeviceLocationState(
+        trackingStatus: LocationTrackingStatus.acquiring,
+      ),
+    );
+    await tester.pumpWidget(_wrap(NavigationStatusPanel(data: data)));
     expect(tester.takeException(), isNull);
   });
 }

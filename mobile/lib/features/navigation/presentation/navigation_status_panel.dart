@@ -20,6 +20,7 @@ final class NavigationStatusData {
     this.gpsAccuracyMeters,
     this.headingDegrees,
     this.imuPhase,
+    this.locationState,
   });
 
   final NavigationMode mode;
@@ -33,20 +34,27 @@ final class NavigationStatusData {
   final double? headingDegrees;
 
   final ImuNavigationPhase? imuPhase;
+  final DeviceLocationState? locationState;
 
   factory NavigationStatusData.fromSessionState({
     required NavigationSessionState session,
     ImuNavigationState? imuState,
+    DeviceLocationState? locationState,
   }) {
     final displayed = session.displayedPosition;
     return NavigationStatusData(
       mode: session.navigationMode,
       hasGpsFix: session.hasGpsFix,
-      gpsAccuracyMeters: session.navigationMode == NavigationMode.gps
-          ? displayed?.horizontalAccuracyMeters
+      gpsAccuracyMeters:
+          session.navigationMode == NavigationMode.gps &&
+              displayed?.horizontalAccuracyMeters != null &&
+              displayed!.horizontalAccuracyMeters!.isFinite &&
+              displayed.horizontalAccuracyMeters! >= 0
+          ? displayed.horizontalAccuracyMeters
           : null,
       headingDegrees: _validHeading(displayed?.heading, imuState),
       imuPhase: imuState?.phase,
+      locationState: locationState,
     );
   }
 
@@ -93,6 +101,8 @@ class NavigationStatusPanel extends StatelessWidget {
             _gpsAccuracyChip(colors)
           else
             _imuPhaseChip(colors),
+          if (data.mode == NavigationMode.gps && data.locationState != null)
+            _trackingChip(colors),
           _headingChip(colors),
         ],
       ),
@@ -157,6 +167,36 @@ class NavigationStatusPanel extends StatelessWidget {
           ? const Color(0xFF188038)
           : isProblem
           ? colors.error
+          : colors.primary,
+    );
+  }
+
+  Widget _trackingChip(ColorScheme colors) {
+    final location = data.locationState!;
+    final unavailable =
+        location.serviceStatus == LocationServiceStatus.disabled ||
+        location.permissionStatus == LocationPermissionStatus.denied ||
+        location.permissionStatus == LocationPermissionStatus.deniedForever ||
+        location.trackingStatus == LocationTrackingStatus.error;
+    final active =
+        !unavailable &&
+        location.trackingStatus == LocationTrackingStatus.active;
+    return CompactStatusChip(
+      key: const ValueKey('nav-status-tracking'),
+      label: unavailable
+          ? 'GPS unavailable'
+          : active
+          ? 'GPS tracking'
+          : 'GPS waiting',
+      icon: unavailable
+          ? Icons.gps_off_rounded
+          : active
+          ? Icons.gps_fixed_rounded
+          : Icons.gps_not_fixed_rounded,
+      color: unavailable
+          ? colors.error
+          : active
+          ? const Color(0xFF188038)
           : colors.primary,
     );
   }
