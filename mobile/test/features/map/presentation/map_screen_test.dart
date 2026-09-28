@@ -10,6 +10,10 @@ import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/core/geo/position_sample.dart';
 import 'package:nadr_mobile/core/network/nadr_rest_client.dart';
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
+import 'package:nadr_mobile/features/destination/domain/place_search_repository.dart';
+import 'package:nadr_mobile/features/destination/domain/place_search_result.dart';
+import 'package:nadr_mobile/features/destination/infrastructure/unconfigured_place_search_repository.dart';
+import 'package:nadr_mobile/features/destination/application/place_search_controller.dart';
 import 'package:nadr_mobile/features/map/domain/current_location_marker.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
@@ -68,12 +72,15 @@ void main() {
     expect(find.byKey(const ValueKey('map-placeholder')), findsNothing);
     expect(find.byKey(const ValueKey('map-configuration-error')), findsOne);
     expect(find.textContaining('NADR_MAP_STYLE_URL'), findsOneWidget);
-    expect(find.text('Choose destination'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('destination-search-field')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('backend-diagnostics-button')),
       findsOneWidget,
     );
-    expect(find.bySemanticsLabel('NADR'), findsOneWidget);
+    expect(find.byIcon(Icons.search_rounded), findsOneWidget);
   });
 
   testWidgets('configured map style is read through AppEnvironment', (
@@ -212,7 +219,10 @@ void main() {
       Theme.of(tester.element(find.byType(MapScreen))).brightness,
       Brightness.dark,
     );
-    expect(find.text('Choose destination'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('destination-search-field')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -226,7 +236,10 @@ void main() {
 
     await tester.pumpWidget(testApp());
 
-    expect(find.text('Choose destination'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('destination-search-field')),
+      findsOneWidget,
+    );
     expect(find.byType(NavigationModeControl), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -239,7 +252,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('destination-surface')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Choose destination'), findsWidgets);
+    expect(find.text('Choose destination'), findsOneWidget);
     expect(find.text('Select a point on the map'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('destination-latitude-field')),
@@ -480,6 +493,38 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'search selection updates session and existing destination marker',
+    (tester) async {
+      final marker = _RecordingMapController();
+      final configured = _configuredContainer(
+        mapController: marker,
+        placeSearchRepository: _WidgetSearchRepository(),
+      );
+      addTearDown(configured.dispose);
+      await tester.pumpWidget(_configuredApp(configured));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('destination-search-field')),
+        'MG Road',
+      );
+      await tester.pump(const Duration(milliseconds: 30));
+      await tester.pump();
+      await tester.tap(find.text('MG Road Station'));
+      await tester.pump();
+      final destination = configured
+          .read(navigationSessionProvider)
+          .destination;
+      expect(
+        destination?.coordinate,
+        const GeoCoordinate(latitude: 12.98, longitude: 77.60),
+      );
+      expect(destination?.displayLabel, 'MG Road Station');
+      expect(marker.destinationUpdates.last, destination);
+      expect(find.text('MG Road Station'), findsOneWidget);
+    },
+  );
 }
 
 Future<void> _openDestinationPanel(WidgetTester tester) async {
@@ -492,6 +537,7 @@ ProviderContainer _configuredContainer({
   _RecordingMapController? mapController,
   NadrRestClient? restClient,
   RouteRepository? routeRepository,
+  PlaceSearchRepository? placeSearchRepository,
 }) {
   final controller = mapController ?? _RecordingMapController();
   Widget surfaceBuilder(
@@ -519,8 +565,24 @@ ProviderContainer _configuredContainer({
         nadrRestClientProvider.overrideWith((ref) async => restClient),
       if (routeRepository != null)
         routeRepositoryProvider.overrideWith((ref) async => routeRepository),
+      if (placeSearchRepository != null) ...[
+        placeSearchRepositoryProvider.overrideWithValue(placeSearchRepository),
+        placeSearchDebounceProvider.overrideWithValue(
+          const Duration(milliseconds: 10),
+        ),
+      ],
     ],
   );
+}
+
+final class _WidgetSearchRepository implements PlaceSearchRepository {
+  @override
+  Future<List<PlaceSearchResult>> search(String query) async => [
+    PlaceSearchResult(
+      label: 'MG Road Station',
+      coordinate: const GeoCoordinate(latitude: 12.98, longitude: 77.60),
+    ),
+  ];
 }
 
 Widget _configuredApp(ProviderContainer container) {

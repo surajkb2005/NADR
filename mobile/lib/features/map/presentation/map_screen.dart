@@ -10,12 +10,12 @@ import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/core/network/backend_connectivity_panel.dart';
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
 import 'package:nadr_mobile/features/destination/presentation/destination_selection_panel.dart';
+import 'package:nadr_mobile/features/destination/presentation/destination_search_surface.dart';
 import 'package:nadr_mobile/features/imu/application/imu_navigation_coordinator.dart';
 import 'package:nadr_mobile/features/imu/application/imu_navigation_state.dart';
 import 'package:nadr_mobile/features/map/domain/map_defaults.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
 import 'package:nadr_mobile/features/map/presentation/map_camera_follow_controller.dart';
-import 'package:nadr_mobile/features/map/presentation/widgets/destination_surface.dart';
 import 'package:nadr_mobile/features/map/presentation/widgets/interactive_map_layer.dart';
 import 'package:nadr_mobile/features/map/presentation/widgets/maplibre_map_surface.dart';
 import 'package:nadr_mobile/features/map/presentation/widgets/navigation_info_sheet.dart';
@@ -216,9 +216,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               bottom: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: DestinationSurface(
+                child: DestinationSearchSurface(
                   destination: destination,
-                  onPressed: _openDestinationPanel,
+                  onSelect: ref
+                      .read(navigationSessionProvider.notifier)
+                      .setDestination,
+                  onOpenFallback: _openDestinationPanel,
                 ),
               ),
             ),

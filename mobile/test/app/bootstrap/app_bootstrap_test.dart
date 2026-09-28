@@ -30,7 +30,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Choose destination'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('destination-search-field')),
+      findsOneWidget,
+    );
     expect(find.text('NADR Navigation'), findsOneWidget);
 
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
