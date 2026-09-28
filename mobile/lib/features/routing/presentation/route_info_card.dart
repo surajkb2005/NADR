@@ -68,6 +68,12 @@ class RouteInfoCard extends StatelessWidget {
         icon: Icons.route_outlined,
         color: colors.outline,
       ),
+      RouteRequestPhase.waitingForPosition => CompactStatusChip(
+        key: const ValueKey('route-info-phase'),
+        label: 'Waiting',
+        icon: Icons.gps_not_fixed_rounded,
+        color: colors.primary,
+      ),
       RouteRequestPhase.loading => CompactStatusChip(
         key: const ValueKey('route-info-phase'),
         label: 'Loading',
@@ -94,6 +100,14 @@ class RouteInfoCard extends StatelessWidget {
       case RouteRequestPhase.idle:
         return Text(
           'Request a route to see details here.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        );
+
+      case RouteRequestPhase.waitingForPosition:
+        return Text(
+          requestState.message ?? 'Waiting for your current position.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),

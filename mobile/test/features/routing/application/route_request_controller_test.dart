@@ -20,7 +20,10 @@ void main() {
     addTearDown(container.dispose);
     final requester = container.read(routeRequestControllerProvider.notifier);
 
-    expect(await requester.requestRoute(), RouteRequestOutcome.missingStart);
+    expect(
+      await requester.requestRoute(),
+      RouteRequestOutcome.missingDestination,
+    );
     _setGps(container, const GeoCoordinate(latitude: 1, longitude: 2));
     expect(
       await requester.requestRoute(),
@@ -99,13 +102,13 @@ void main() {
       );
       completer.complete(_alternatives());
 
-      expect(await request, RouteRequestOutcome.success);
+      expect(await request, RouteRequestOutcome.cancelled);
       expect(
-        repository.calls.single.start,
+        repository.calls.first.start,
         const GeoCoordinate(latitude: 12.1, longitude: 77.2),
       );
       expect(
-        repository.calls.single.end,
+        repository.calls.first.end,
         const GeoCoordinate(latitude: 12.3, longitude: 77.4),
       );
     },

@@ -406,7 +406,7 @@ void main() {
     },
   );
 
-  testWidgets('recenter and destination selection make no REST request', (
+  testWidgets('destination selection requests a route; recenter does not', (
     tester,
   ) async {
     final adapter = _CountingAdapter();
@@ -445,6 +445,7 @@ void main() {
       find.byKey(const ValueKey('confirm-coordinate-destination')),
     );
     await tester.pumpAndSettle();
+    expect(adapter.requests, 1);
     await tester.tap(find.byKey(const ValueKey('recenter-button')));
     await tester.pumpAndSettle();
 
@@ -452,10 +453,10 @@ void main() {
       configured.read(navigationSessionProvider).destination?.coordinate,
       const GeoCoordinate(latitude: 13, longitude: 78),
     );
-    expect(adapter.requests, 0);
+    expect(adapter.requests, 1);
   });
 
-  testWidgets('explicit route action stores route data without a map layer', (
+  testWidgets('automatic route request stores data without a map layer', (
     tester,
   ) async {
     final repository = _WidgetRouteRepository();
@@ -477,12 +478,9 @@ void main() {
     await tester.pumpWidget(_configuredApp(configured));
     await tester.pumpAndSettle();
 
+    expect(repository.calls, 1);
     await tester.drag(find.byType(BottomSheetSurface), const Offset(0, -220));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('get-route-button')));
-    await tester.pumpAndSettle();
-
-    expect(repository.calls, 1);
     expect(
       configured.read(navigationSessionProvider).routeAlternatives.isNotEmpty,
       isTrue,

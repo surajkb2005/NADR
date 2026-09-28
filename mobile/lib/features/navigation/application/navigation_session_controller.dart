@@ -65,11 +65,25 @@ final class NavigationSessionController
   }
 
   void setDestination(Destination destination) {
-    state = state.copyWith(destination: destination);
+    if (state.destination == destination) return;
+    state = state.copyWith(
+      destination: destination,
+      routeAlternatives: RouteAlternatives.empty(),
+      selectedRoute: null,
+      selectedRouteMode: RouteMode.normal,
+      errorMessage: null,
+    );
   }
 
   void clearDestination() {
-    state = state.copyWith(destination: null);
+    if (state.destination == null) return;
+    state = state.copyWith(
+      destination: null,
+      routeAlternatives: RouteAlternatives.empty(),
+      selectedRoute: null,
+      selectedRouteMode: RouteMode.normal,
+      errorMessage: null,
+    );
   }
 
   void setRouteAlternatives(RouteAlternatives alternatives) {
