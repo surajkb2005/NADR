@@ -69,7 +69,7 @@ void main() {
       'place search URL is optional and validated without crashing bootstrap',
       () {
         final missing = AppEnvironment(mapStyleUrl: '');
-        expect(missing.placeSearchBaseUri, isNull);
+        expect(missing.placeSearchBaseUri?.host, 'api.maptiler.com');
         expect(missing.placeSearchConfigurationError, isNull);
 
         final configured = AppEnvironment(
@@ -89,5 +89,22 @@ void main() {
         );
       },
     );
+
+    test('MapTiler key is optional and base rejects embedded credentials', () {
+      final configured = AppEnvironment(
+        mapStyleUrl: '',
+        mapTilerApiKey: '  configured-key  ',
+      );
+      expect(configured.mapTilerApiKey, 'configured-key');
+      final invalid = AppEnvironment(
+        mapStyleUrl: '',
+        placeSearchBaseUrl: 'https://user:password@example.test/?key=hidden',
+      );
+      expect(invalid.placeSearchBaseUri, isNull);
+      expect(
+        invalid.placeSearchConfigurationError,
+        contains('NADR_PLACE_SEARCH_BASE_URL'),
+      );
+    });
   });
 }

@@ -4,6 +4,7 @@ import 'package:nadr_mobile/features/destination/application/place_search_contro
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
 import 'package:nadr_mobile/features/destination/domain/place_search_repository.dart';
 import 'package:nadr_mobile/features/destination/domain/place_search_result.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Floating map search. The session destination remains owned by the caller.
 class DestinationSearchSurface extends ConsumerStatefulWidget {
@@ -178,29 +179,51 @@ class _DestinationSearchSurfaceState
         ],
       ),
     ),
-    PlaceSearchPhase.results => ListView.builder(
+    PlaceSearchPhase.results => ListView(
       shrinkWrap: true,
-      itemCount: search.results.length,
-      itemBuilder: (context, index) {
-        final result = search.results[index];
-        return ListTile(
-          key: ValueKey('place-result-$index'),
-          leading: const Icon(Icons.place_outlined),
-          title: Text(
-            result.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+      children: [
+        for (var index = 0; index < search.results.length; index++)
+          ListTile(
+            key: ValueKey('place-result-$index'),
+            leading: const Icon(Icons.place_outlined),
+            title: Text(
+              search.results[index].label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: search.results[index].subtitle == null
+                ? null
+                : Text(
+                    search.results[index].subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+            onTap: () => _select(search.results[index]),
           ),
-          subtitle: result.subtitle == null
-              ? null
-              : Text(
-                  result.subtitle!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+          child: Wrap(
+            key: const ValueKey('place-search-attribution'),
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () => launchUrl(
+                  Uri.parse('https://www.maptiler.com/copyright/'),
+                  mode: LaunchMode.externalApplication,
                 ),
-          onTap: () => _select(result),
-        );
-      },
+                child: const Text('© MapTiler'),
+              ),
+              TextButton(
+                onPressed: () => launchUrl(
+                  Uri.parse('https://www.openstreetmap.org/copyright'),
+                  mode: LaunchMode.externalApplication,
+                ),
+                child: const Text('© OpenStreetMap contributors'),
+              ),
+            ],
+          ),
+        ),
+      ],
     ),
     PlaceSearchPhase.empty => const ListTile(
       leading: Icon(Icons.search_off_rounded),

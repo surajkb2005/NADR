@@ -10,7 +10,8 @@ final class AppEnvironment {
   factory AppEnvironment({
     String apiBaseUrl = '',
     String wsBaseUrl = '',
-    String placeSearchBaseUrl = '',
+    String placeSearchBaseUrl = 'https://api.maptiler.com',
+    String mapTilerApiKey = '',
     required String mapStyleUrl,
   }) {
     final mapStyle = _parseOptionalUri(
@@ -22,6 +23,7 @@ final class AppEnvironment {
       name: 'NADR_PLACE_SEARCH_BASE_URL',
       value: placeSearchBaseUrl,
       allowedSchemes: const {'http', 'https'},
+      requirePlainBase: true,
     );
     return AppEnvironment._(
       apiBaseUri: _parseConfiguredUri(
@@ -38,6 +40,7 @@ final class AppEnvironment {
       mapStyleConfigurationError: mapStyle.error,
       placeSearchBaseUri: placeSearch.uri,
       placeSearchConfigurationError: placeSearch.error,
+      mapTilerApiKey: mapTilerApiKey.trim(),
     );
   }
 
@@ -48,6 +51,7 @@ final class AppEnvironment {
     required this.mapStyleConfigurationError,
     required this.placeSearchBaseUri,
     required this.placeSearchConfigurationError,
+    required this.mapTilerApiKey,
   });
 
   factory AppEnvironment.fromDartDefines() {
@@ -57,7 +61,9 @@ final class AppEnvironment {
       mapStyleUrl: const String.fromEnvironment('NADR_MAP_STYLE_URL'),
       placeSearchBaseUrl: const String.fromEnvironment(
         'NADR_PLACE_SEARCH_BASE_URL',
+        defaultValue: 'https://api.maptiler.com',
       ),
+      mapTilerApiKey: const String.fromEnvironment('NADR_MAPTILER_API_KEY'),
     );
   }
 
@@ -67,6 +73,7 @@ final class AppEnvironment {
   final String? mapStyleConfigurationError;
   final Uri? placeSearchBaseUri;
   final String? placeSearchConfigurationError;
+  final String mapTilerApiKey;
 
   bool get isMapStyleConfigured => mapStyleUri != null;
   bool get isApiConfigured => apiBaseUri != null;
@@ -81,19 +88,25 @@ final class AppEnvironment {
     required String name,
     required String value,
     required Set<String> allowedSchemes,
+    bool requirePlainBase = false,
   }) {
     if (value.trim().isEmpty) {
       return const _OptionalUriResult();
     }
 
     try {
-      return _OptionalUriResult(
-        uri: _parseUri(
-          name: name,
-          value: value,
-          allowedSchemes: allowedSchemes,
-        ),
+      final uri = _parseUri(
+        name: name,
+        value: value,
+        allowedSchemes: allowedSchemes,
       );
+      if (requirePlainBase &&
+          (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment)) {
+        throw FormatException(
+          '$name must not contain credentials, query, or fragment.',
+        );
+      }
+      return _OptionalUriResult(uri: uri);
     } on FormatException catch (error) {
       return _OptionalUriResult(error: error.message.toString());
     }

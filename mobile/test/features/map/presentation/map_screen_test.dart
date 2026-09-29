@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +15,7 @@ import 'package:nadr_mobile/features/destination/domain/destination.dart';
 import 'package:nadr_mobile/features/destination/domain/place_search_repository.dart';
 import 'package:nadr_mobile/features/destination/domain/place_search_result.dart';
 import 'package:nadr_mobile/features/destination/infrastructure/unconfigured_place_search_repository.dart';
+import 'package:nadr_mobile/features/destination/infrastructure/maptiler_place_search_repository.dart';
 import 'package:nadr_mobile/features/destination/application/place_search_controller.dart';
 import 'package:nadr_mobile/features/map/domain/current_location_marker.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
@@ -142,7 +145,10 @@ void main() {
     expect(find.text('GPS mode'), findsNothing);
     expect(find.text('Heading unavailable'), findsNothing);
     expect(find.text('No GPS fix'), findsOneWidget);
-    expect(find.byKey(const ValueKey('location-status-indicator')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('location-status-indicator')),
+      findsNothing,
+    );
     expect(
       container.read(navigationSessionProvider).navigationMode,
       domain.NavigationMode.gps,
@@ -290,8 +296,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('destination-search-field')), findsOneWidget);
-    expect(find.byKey(const ValueKey('destination-suggestions')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('destination-search-field')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('destination-suggestions')),
+      findsOneWidget,
+    );
     expect(find.byType(NavigationModeControl), findsOneWidget);
     expect(find.byKey(const ValueKey('navigation-info-sheet')), findsOneWidget);
     expect(find.byKey(const ValueKey('recenter-button')), findsOneWidget);
@@ -629,6 +641,67 @@ void main() {
       expect(find.text('MG Road Station'), findsNWidgets(2));
     },
   );
+
+  testWidgets('MapTiler result selects destination and requests NADR route', (
+    tester,
+  ) async {
+    final search = MapTilerPlaceSearchRepository(
+      baseUri: Uri.parse('https://api.maptiler.com'),
+      apiKey: 'placeholder-key',
+      dio: Dio()..httpClientAdapter = _MapTilerReplyAdapter(),
+    );
+    addTearDown(search.dispose);
+    final routes = _WidgetRouteRepository();
+    final map = _RecordingMapController();
+    final configured = _configuredContainer(
+      mapController: map,
+      routeRepository: routes,
+      placeSearchRepository: search,
+    );
+    addTearDown(configured.dispose);
+    configured
+        .read(navigationSessionProvider.notifier)
+        .updateGpsPosition(
+          PositionSample(
+            coordinate: const GeoCoordinate(latitude: 12.9, longitude: 77.5),
+            timestamp: DateTime.utc(2026, 9, 23),
+            source: domain.PositionSource.gps,
+          ),
+        );
+    await tester.pumpWidget(_configuredApp(configured));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('destination-search-field')),
+      'Cubbon Park',
+    );
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.pump();
+    expect(find.text('Bengaluru, Karnataka'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('place-search-attribution')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('place-result-0')));
+    await tester.pumpAndSettle();
+
+    final session = configured.read(navigationSessionProvider);
+    expect(session.destination?.displayLabel, 'Cubbon Park');
+    expect(
+      session.destination?.coordinate,
+      const GeoCoordinate(latitude: 12.97, longitude: 77.59),
+    );
+    expect(routes.calls, 1);
+    expect(
+      routes.lastStart,
+      const GeoCoordinate(latitude: 12.9, longitude: 77.5),
+    );
+    expect(
+      routes.lastEnd,
+      const GeoCoordinate(latitude: 12.97, longitude: 77.59),
+    );
+    expect(session.selectedRoute, isNotNull);
+    expect(map.routeUpdates.last, same(session.selectedRoute));
+  });
 }
 
 Future<void> _openDestinationPanel(WidgetTester tester) async {
@@ -808,6 +881,8 @@ final class _CountingAdapter implements HttpClientAdapter {
 
 final class _WidgetRouteRepository implements RouteRepository {
   int calls = 0;
+  GeoCoordinate? lastStart;
+  GeoCoordinate? lastEnd;
 
   @override
   Future<RouteAlternatives> calculateRoute({
@@ -816,6 +891,8 @@ final class _WidgetRouteRepository implements RouteRepository {
     RouteMode mode = RouteMode.normal,
   }) async {
     calls++;
+    lastStart = start;
+    lastEnd = end;
     return RouteAlternatives(
       byMode: {
         RouteMode.normal: RouteAlternative(
@@ -827,4 +904,36 @@ final class _WidgetRouteRepository implements RouteRepository {
       },
     );
   }
+}
+
+final class _MapTilerReplyAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<List<int>>? requestStream,
+    Future<void>? cancelFuture,
+  ) async => ResponseBody.fromString(
+    jsonEncode({
+      'type': 'FeatureCollection',
+      'features': [
+        {
+          'type': 'Feature',
+          'id': 'poi.42',
+          'text': 'Cubbon Park',
+          'place_name': 'Bengaluru, Karnataka',
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [77.59, 12.97],
+          },
+        },
+      ],
+    }),
+    200,
+    headers: {
+      'content-type': ['application/json'],
+    },
+  );
+
+  @override
+  void close({bool force = false}) {}
 }
