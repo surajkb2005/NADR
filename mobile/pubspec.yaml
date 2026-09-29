@@ -19,6 +19,7 @@ dependencies:
   maplibre: ^0.3.6
   sensors_plus: ^6.1.2
   flutter_compass: ^0.8.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

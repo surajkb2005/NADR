@@ -137,7 +137,7 @@ void main() {
     expect(readState().selectedRouteMode, RouteMode.safe);
   });
 
-  test('9. clearing destination changes only destination', () {
+  test('9. clearing destination invalidates route but preserves mode', () {
     const destination = Destination(
       coordinate: GeoCoordinate(latitude: 15.2993, longitude: 74.1240),
     );
@@ -151,8 +151,8 @@ void main() {
 
     expect(readState().destination, isNull);
     expect(readState().navigationMode, NavigationMode.imu);
-    expect(readState().routeAlternatives, same(alternatives));
-    expect(readState().selectedRoute, isNotNull);
+    expect(readState().routeAlternatives.isEmpty, isTrue);
+    expect(readState().selectedRoute, isNull);
   });
 
   test('10. loading and error updates preserve navigation state', () {

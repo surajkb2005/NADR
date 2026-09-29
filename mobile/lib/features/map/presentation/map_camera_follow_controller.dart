@@ -9,7 +9,9 @@ import 'package:nadr_mobile/features/map/domain/current_location_marker.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
 import 'package:nadr_mobile/features/map/presentation/current_location_marker_mapper.dart';
+import 'package:nadr_mobile/features/map/presentation/route_camera_fit.dart';
 import 'package:nadr_mobile/features/navigation/domain/navigation_session_state.dart';
+import 'package:nadr_mobile/features/routing/domain/route_models.dart';
 
 enum MapCameraFollowMode { following, userExplore }
 
@@ -44,6 +46,10 @@ final class MapCameraFollowController {
   Timer? _cameraCooldown;
   MapCameraUpdate? _pendingCameraUpdate;
   Future<RecenterOutcome>? _recenterInFlight;
+  RouteAlternative? _previewRoute;
+  RouteCameraFit? _pendingRouteFit;
+  Future<void>? _routeFitInFlight;
+  int _routeFitGeneration = 0;
   bool _disposed = false;
 
   CurrentLocationMarkerData? get marker => _marker;
@@ -64,6 +70,63 @@ final class MapCameraFollowController {
     onChanged?.call();
     await controller.updateCurrentLocationMarker(_marker);
     await _moveForLatestPositionIfNeeded();
+    await retryPendingRouteFit();
+  }
+
+  /// A selected-route change opens one preview; location ticks never call it.
+  Future<void> previewSelectedRoute(
+    RouteAlternative? route,
+    RouteCameraFit? fit,
+  ) async {
+    if (identical(route, _previewRoute)) return;
+    _previewRoute = route;
+    _routeFitGeneration++;
+    _pendingRouteFit = route == null ? null : fit;
+    if (_pendingRouteFit == null) return;
+    _suspendFollowForRoutePreview();
+    await retryPendingRouteFit();
+  }
+
+  Future<void> retryPendingRouteFit() async {
+    while (!_disposed && _mapController != null && _pendingRouteFit != null) {
+      final existing = _routeFitInFlight;
+      if (existing != null) {
+        await existing;
+        continue;
+      }
+      final operation = _fitLatestRoute();
+      _routeFitInFlight = operation;
+      try {
+        await operation;
+      } finally {
+        if (identical(_routeFitInFlight, operation)) _routeFitInFlight = null;
+      }
+      // A failed fit remains pending for a later style-ready callback.
+      if (_pendingRouteFit != null) return;
+    }
+  }
+
+  Future<void> _fitLatestRoute() async {
+    final controller = _mapController;
+    final fit = _pendingRouteFit;
+    if (controller == null || fit == null) return;
+    final generation = _routeFitGeneration;
+    try {
+      await controller.fitBounds(fit.bounds, padding: fit.padding);
+      if (generation == _routeFitGeneration) _pendingRouteFit = null;
+    } on Object catch (error) {
+      NadrDiagnostics.log('NADR_MAP_ROUTE_FIT', 'camera_error=$error');
+    }
+  }
+
+  void _suspendFollowForRoutePreview() {
+    _cameraCooldown?.cancel();
+    _cameraCooldown = null;
+    _pendingCameraUpdate = null;
+    if (_followMode != MapCameraFollowMode.userExplore) {
+      _followMode = MapCameraFollowMode.userExplore;
+      onChanged?.call();
+    }
   }
 
   void detachMapController(NadrMapController? controller) {
@@ -96,6 +159,8 @@ final class MapCameraFollowController {
   }
 
   void handleUserGesture() {
+    _pendingRouteFit = null;
+    _routeFitGeneration++;
     if (_followMode == MapCameraFollowMode.userExplore) return;
     _followMode = MapCameraFollowMode.userExplore;
     _cameraCooldown?.cancel();
@@ -131,9 +196,20 @@ final class MapCameraFollowController {
       return Future.value(RecenterOutcome.noPosition);
     }
 
-    final operation = _performRecenter(controller, position);
+    _pendingRouteFit = null;
+    _routeFitGeneration++;
+    final operation = _recenterAfterRouteFit(controller, position);
     _recenterInFlight = operation;
     return _finishRecenter(operation);
+  }
+
+  Future<RecenterOutcome> _recenterAfterRouteFit(
+    NadrMapController controller,
+    PositionSample position,
+  ) async {
+    final fit = _routeFitInFlight;
+    if (fit != null) await fit;
+    return _performRecenter(controller, position);
   }
 
   Future<RecenterOutcome> _finishRecenter(
@@ -232,6 +308,7 @@ final class MapCameraFollowController {
 
   void dispose() {
     _disposed = true;
+    _pendingRouteFit = null;
     _cameraCooldown?.cancel();
     _pendingCameraUpdate = null;
     _mapController = null;

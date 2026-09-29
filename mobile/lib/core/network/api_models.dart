@@ -176,10 +176,12 @@ final class ApiRouteResponse {
     required this.alternatives,
     this.route,
     this.metadata,
+    this.invalidAlternatives = 0,
   });
   final Map<String, ApiRouteVariant> alternatives;
   final ApiRouteVariant? route;
   final ApiRouteMetadata? metadata;
+  final int invalidAlternatives;
 
   factory ApiRouteResponse.fromJson(Object? value) {
     final json = apiObject(value, r'$');
@@ -189,14 +191,24 @@ final class ApiRouteResponse {
     final rawAlternatives = json['alternatives'] == null
         ? <String, dynamic>{}
         : apiObject(json['alternatives'], r'$.alternatives');
+    final alternatives = <String, ApiRouteVariant>{};
+    var invalidAlternatives = 0;
+    for (final entry in rawAlternatives.entries) {
+      if (!const {'normal', 'safe', 'drifted', 'imu'}.contains(entry.key)) {
+        continue;
+      }
+      try {
+        alternatives[entry.key] = ApiRouteVariant.fromJson(
+          entry.value,
+          r'$.alternatives.' + entry.key,
+        );
+      } on ApiDecodingException {
+        invalidAlternatives++;
+      }
+    }
     return ApiRouteResponse(
-      alternatives: {
-        for (final entry in rawAlternatives.entries)
-          entry.key: ApiRouteVariant.fromJson(
-            entry.value,
-            r'$.alternatives.' + entry.key,
-          ),
-      },
+      alternatives: alternatives,
+      invalidAlternatives: invalidAlternatives,
       route: json['route'] == null
           ? null
           : ApiRouteVariant.fromJson(json['route'], r'$.route'),

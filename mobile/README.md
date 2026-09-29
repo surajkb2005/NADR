@@ -107,6 +107,29 @@ GPS or IMU estimates drive the native geographic MapLibre marker through
 `displayedPosition`; camera follow, user exploration, and recenter are active.
 Map attribution comes from the configured style and remains visible.
 
+## Place search foundation
+
+The destination feature has a typed place-search result, repository interface,
+and debounced Riverpod controller. Live place search uses MapTiler Geocoding.
+Supply a MapTiler **API key** with `NADR_MAPTILER_API_KEY`; do not supply a
+MapTiler service token, which is a private server-side credential. Do not commit
+real keys. The optional `NADR_PLACE_SEARCH_BASE_URL` defaults to
+`https://api.maptiler.com` and can be overridden for a compatible endpoint.
+For example:
+
+```sh
+flutter run \
+  --dart-define=NADR_API_BASE_URL=https://nadr.example.test/api \
+  --dart-define=NADR_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty \
+  --dart-define=NADR_MAPTILER_API_KEY=<your-maptiler-api-key>
+```
+
+When the key is absent or the optional base URL is invalid, the app still
+starts and search shows a controlled unavailable state; map and routing remain
+usable. Searches use MapTiler forward geocoding with autocomplete and five
+results. Search suggestions display linked MapTiler and OpenStreetMap attribution;
+the separate attribution supplied by the configured map style remains visible.
+
 ## Foreground location
 
 Android declares coarse and fine foreground location permissions. No

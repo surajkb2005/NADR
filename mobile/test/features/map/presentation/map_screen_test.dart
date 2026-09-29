@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +12,11 @@ import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/core/geo/position_sample.dart';
 import 'package:nadr_mobile/core/network/nadr_rest_client.dart';
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
+import 'package:nadr_mobile/features/destination/domain/place_search_repository.dart';
+import 'package:nadr_mobile/features/destination/domain/place_search_result.dart';
+import 'package:nadr_mobile/features/destination/infrastructure/unconfigured_place_search_repository.dart';
+import 'package:nadr_mobile/features/destination/infrastructure/maptiler_place_search_repository.dart';
+import 'package:nadr_mobile/features/destination/application/place_search_controller.dart';
 import 'package:nadr_mobile/features/map/domain/current_location_marker.dart';
 import 'package:nadr_mobile/features/map/domain/map_camera.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
@@ -19,6 +26,7 @@ import 'package:nadr_mobile/features/map/presentation/widgets/navigation_mode_co
 import 'package:nadr_mobile/features/location/application/location_coordinator.dart';
 import 'package:nadr_mobile/features/navigation/application/navigation_session_controller.dart';
 import 'package:nadr_mobile/features/routing/domain/route_models.dart';
+import 'package:nadr_mobile/features/routing/presentation/route_info_card.dart';
 import 'package:nadr_mobile/features/routing/domain/route_repository.dart';
 import 'package:nadr_mobile/features/routing/infrastructure/rest_route_repository.dart';
 import 'package:nadr_mobile/shared/widgets/bottom_sheet_surface.dart';
@@ -68,12 +76,15 @@ void main() {
     expect(find.byKey(const ValueKey('map-placeholder')), findsNothing);
     expect(find.byKey(const ValueKey('map-configuration-error')), findsOne);
     expect(find.textContaining('NADR_MAP_STYLE_URL'), findsOneWidget);
-    expect(find.text('Choose destination'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('destination-search-field')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('backend-diagnostics-button')),
       findsOneWidget,
     );
-    expect(find.bySemanticsLabel('NADR'), findsOneWidget);
+    expect(find.byIcon(Icons.search_rounded), findsOneWidget);
   });
 
   testWidgets('configured map style is read through AppEnvironment', (
@@ -131,7 +142,13 @@ void main() {
     await tester.pump();
 
     expect(find.byType(NavigationModeControl), findsOneWidget);
-    expect(find.text('Location active'), findsOneWidget);
+    expect(find.text('GPS mode'), findsNothing);
+    expect(find.text('Heading unavailable'), findsNothing);
+    expect(find.text('No GPS fix'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('location-status-indicator')),
+      findsNothing,
+    );
     expect(
       container.read(navigationSessionProvider).navigationMode,
       domain.NavigationMode.gps,
@@ -167,12 +184,8 @@ void main() {
   ) async {
     await tester.pumpWidget(testApp());
 
-    expect(find.text('NADR Navigation'), findsOneWidget);
-    expect(find.text('No destination selected'), findsOneWidget);
-    expect(
-      find.text('Select a destination to view route information.'),
-      findsOneWidget,
-    );
+    expect(find.text('No destination selected'), findsNothing);
+    expect(find.byKey(const ValueKey('get-route-button')), findsNothing);
     expect(find.byKey(const ValueKey('navigation-info-sheet')), findsOneWidget);
     expect(find.byKey(const ValueKey('recenter-button')), findsOneWidget);
 
@@ -196,6 +209,29 @@ void main() {
     expect(expandedSheetHeight, greaterThan(initialSheetHeight));
   });
 
+  testWidgets('route waiting owns the missing-position message', (
+    tester,
+  ) async {
+    final repository = _WidgetRouteRepository();
+    final configured = _configuredContainer(routeRepository: repository);
+    addTearDown(configured.dispose);
+    configured
+        .read(navigationSessionProvider.notifier)
+        .setDestination(
+          const Destination(
+            coordinate: GeoCoordinate(latitude: 12.3, longitude: 77.4),
+          ),
+        );
+
+    await tester.pumpWidget(_configuredApp(configured));
+    await tester.pumpAndSettle();
+
+    expect(repository.calls, 0);
+    expect(find.text('Waiting for your current position.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('nav-issue-banner')), findsNothing);
+    expect(find.text('No GPS fix'), findsNothing);
+  });
+
   testWidgets('no current-location marker is introduced', (tester) async {
     await tester.pumpWidget(testApp());
 
@@ -212,7 +248,10 @@ void main() {
       Theme.of(tester.element(find.byType(MapScreen))).brightness,
       Brightness.dark,
     );
-    expect(find.text('Choose destination'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('destination-search-field')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -226,8 +265,48 @@ void main() {
 
     await tester.pumpWidget(testApp());
 
-    expect(find.text('Choose destination'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('destination-search-field')),
+      findsOneWidget,
+    );
     expect(find.byType(NavigationModeControl), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('search suggestions and map controls fit with keyboard open', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+
+    final configured = _configuredContainer(
+      placeSearchRepository: _WidgetSearchRepository(),
+    );
+    addTearDown(configured.dispose);
+    await tester.pumpWidget(_configuredApp(configured));
+    await tester.tap(find.byKey(const ValueKey('destination-search-field')));
+    await tester.enterText(
+      find.byKey(const ValueKey('destination-search-field')),
+      'Central Park',
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('destination-search-field')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('destination-suggestions')),
+      findsOneWidget,
+    );
+    expect(find.byType(NavigationModeControl), findsOneWidget);
+    expect(find.byKey(const ValueKey('navigation-info-sheet')), findsOneWidget);
+    expect(find.byKey(const ValueKey('recenter-button')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -239,7 +318,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('destination-surface')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Choose destination'), findsWidgets);
+    expect(find.text('Choose destination'), findsOneWidget);
     expect(find.text('Select a point on the map'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('destination-latitude-field')),
@@ -393,7 +472,7 @@ void main() {
     },
   );
 
-  testWidgets('recenter and destination selection make no REST request', (
+  testWidgets('destination selection requests a route; recenter does not', (
     tester,
   ) async {
     final adapter = _CountingAdapter();
@@ -432,6 +511,7 @@ void main() {
       find.byKey(const ValueKey('confirm-coordinate-destination')),
     );
     await tester.pumpAndSettle();
+    expect(adapter.requests, 1);
     await tester.tap(find.byKey(const ValueKey('recenter-button')));
     await tester.pumpAndSettle();
 
@@ -439,14 +519,20 @@ void main() {
       configured.read(navigationSessionProvider).destination?.coordinate,
       const GeoCoordinate(latitude: 13, longitude: 78),
     );
-    expect(adapter.requests, 0);
+    expect(adapter.requests, 1);
+    expect(find.byKey(const ValueKey('route-info-retry')), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
   });
 
-  testWidgets('explicit route action stores route data without a map layer', (
+  testWidgets('automatic route request updates selected map geometry', (
     tester,
   ) async {
     final repository = _WidgetRouteRepository();
-    final configured = _configuredContainer(routeRepository: repository);
+    final mapController = _RecordingMapController();
+    final configured = _configuredContainer(
+      routeRepository: repository,
+      mapController: mapController,
+    );
     addTearDown(configured.dispose);
     final session = configured.read(navigationSessionProvider.notifier);
     session.updateGpsPosition(
@@ -464,21 +550,157 @@ void main() {
     await tester.pumpWidget(_configuredApp(configured));
     await tester.pumpAndSettle();
 
+    expect(repository.calls, 1);
     await tester.drag(find.byType(BottomSheetSurface), const Offset(0, -220));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('get-route-button')));
-    await tester.pumpAndSettle();
-
-    expect(repository.calls, 1);
+    final expandedSheetRect = tester.getRect(find.byType(BottomSheetSurface));
+    expect(
+      tester.getRect(find.byType(NavigationModeControl)).bottom,
+      lessThan(expandedSheetRect.top),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('recenter-button'))).bottom,
+      lessThan(expandedSheetRect.top),
+    );
     expect(
       configured.read(navigationSessionProvider).routeAlternatives.isNotEmpty,
       isTrue,
     );
-    expect(find.text('Route data received (1 alternatives).'), findsOneWidget);
+    expect(find.byType(RouteInfoCard), findsOneWidget);
+    expect(find.text('1.0 km'), findsOneWidget);
+    expect(find.text('Route data received (1 alternatives).'), findsNothing);
     expect(
-      find.text('Route map rendering is coming in the next stage.'),
+      mapController.routeUpdates.last,
+      same(configured.read(navigationSessionProvider).selectedRoute),
+    );
+    expect(mapController.routeFits, hasLength(1));
+    final normal = configured.read(navigationSessionProvider).selectedRoute!;
+    final safe = RouteAlternative(
+      mode: RouteMode.safe,
+      path: const [
+        GeoCoordinate(latitude: 12.1, longitude: 77.2),
+        GeoCoordinate(latitude: 12.2, longitude: 77.3),
+        GeoCoordinate(latitude: 12.3, longitude: 77.4),
+      ],
+      metrics: const RouteMetrics(),
+    );
+    session.setRouteAlternatives(
+      RouteAlternatives(
+        byMode: {RouteMode.normal: normal, RouteMode.safe: safe},
+      ),
+    );
+    session.selectRoute(RouteMode.safe);
+    await tester.pumpAndSettle();
+    expect(mapController.routeUpdates.last, same(safe));
+    expect(mapController.routeFits, hasLength(2));
+    expect(find.text('Safe'), findsOneWidget);
+    expect(find.text('Route profile'), findsOneWidget);
+    final updateCount = mapController.routeUpdates.length;
+    session.setNavigationMode(domain.NavigationMode.imu);
+    session.setNavigationMode(domain.NavigationMode.gps);
+    await tester.pumpAndSettle();
+    expect(mapController.routeUpdates.length, updateCount);
+    expect(mapController.routeFits, hasLength(2));
+    expect(find.byType(RouteInfoCard), findsOneWidget);
+    expect(find.text('Route profile'), findsOneWidget);
+    expect(find.text('Safe'), findsOneWidget);
+    session.clearDestination();
+    await tester.pumpAndSettle();
+    expect(mapController.routeUpdates.last, isNull);
+    expect(mapController.routeFits, hasLength(2));
+  });
+
+  testWidgets(
+    'search selection updates session and existing destination marker',
+    (tester) async {
+      final marker = _RecordingMapController();
+      final configured = _configuredContainer(
+        mapController: marker,
+        placeSearchRepository: _WidgetSearchRepository(),
+      );
+      addTearDown(configured.dispose);
+      await tester.pumpWidget(_configuredApp(configured));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('destination-search-field')),
+        'MG Road',
+      );
+      await tester.pump(const Duration(milliseconds: 30));
+      await tester.pump();
+      await tester.tap(find.text('MG Road Station'));
+      await tester.pump();
+      final destination = configured
+          .read(navigationSessionProvider)
+          .destination;
+      expect(
+        destination?.coordinate,
+        const GeoCoordinate(latitude: 12.98, longitude: 77.60),
+      );
+      expect(destination?.displayLabel, 'MG Road Station');
+      expect(marker.destinationUpdates.last, destination);
+      expect(find.text('MG Road Station'), findsNWidgets(2));
+    },
+  );
+
+  testWidgets('MapTiler result selects destination and requests NADR route', (
+    tester,
+  ) async {
+    final search = MapTilerPlaceSearchRepository(
+      baseUri: Uri.parse('https://api.maptiler.com'),
+      apiKey: 'placeholder-key',
+      dio: Dio()..httpClientAdapter = _MapTilerReplyAdapter(),
+    );
+    addTearDown(search.dispose);
+    final routes = _WidgetRouteRepository();
+    final map = _RecordingMapController();
+    final configured = _configuredContainer(
+      mapController: map,
+      routeRepository: routes,
+      placeSearchRepository: search,
+    );
+    addTearDown(configured.dispose);
+    configured
+        .read(navigationSessionProvider.notifier)
+        .updateGpsPosition(
+          PositionSample(
+            coordinate: const GeoCoordinate(latitude: 12.9, longitude: 77.5),
+            timestamp: DateTime.utc(2026, 9, 23),
+            source: domain.PositionSource.gps,
+          ),
+        );
+    await tester.pumpWidget(_configuredApp(configured));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('destination-search-field')),
+      'Cubbon Park',
+    );
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.pump();
+    expect(find.text('Bengaluru, Karnataka'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('place-search-attribution')),
       findsOneWidget,
     );
+    await tester.tap(find.byKey(const ValueKey('place-result-0')));
+    await tester.pumpAndSettle();
+
+    final session = configured.read(navigationSessionProvider);
+    expect(session.destination?.displayLabel, 'Cubbon Park');
+    expect(
+      session.destination?.coordinate,
+      const GeoCoordinate(latitude: 12.97, longitude: 77.59),
+    );
+    expect(routes.calls, 1);
+    expect(
+      routes.lastStart,
+      const GeoCoordinate(latitude: 12.9, longitude: 77.5),
+    );
+    expect(
+      routes.lastEnd,
+      const GeoCoordinate(latitude: 12.97, longitude: 77.59),
+    );
+    expect(session.selectedRoute, isNotNull);
+    expect(map.routeUpdates.last, same(session.selectedRoute));
   });
 }
 
@@ -492,6 +714,7 @@ ProviderContainer _configuredContainer({
   _RecordingMapController? mapController,
   NadrRestClient? restClient,
   RouteRepository? routeRepository,
+  PlaceSearchRepository? placeSearchRepository,
 }) {
   final controller = mapController ?? _RecordingMapController();
   Widget surfaceBuilder(
@@ -519,8 +742,24 @@ ProviderContainer _configuredContainer({
         nadrRestClientProvider.overrideWith((ref) async => restClient),
       if (routeRepository != null)
         routeRepositoryProvider.overrideWith((ref) async => routeRepository),
+      if (placeSearchRepository != null) ...[
+        placeSearchRepositoryProvider.overrideWithValue(placeSearchRepository),
+        placeSearchDebounceProvider.overrideWithValue(
+          const Duration(milliseconds: 10),
+        ),
+      ],
     ],
   );
+}
+
+final class _WidgetSearchRepository implements PlaceSearchRepository {
+  @override
+  Future<List<PlaceSearchResult>> search(String query) async => [
+    PlaceSearchResult(
+      label: 'MG Road Station',
+      coordinate: const GeoCoordinate(latitude: 12.98, longitude: 77.60),
+    ),
+  ];
 }
 
 Widget _configuredApp(ProviderContainer container) {
@@ -557,7 +796,14 @@ class _FakeMapSurfaceState extends State<_FakeMapSurface> {
 
 final class _RecordingMapController implements NadrMapController {
   final destinationUpdates = <Destination?>[];
+  final routeUpdates = <RouteAlternative?>[];
+  final routeFits = <MapBounds>[];
   MapCameraState? camera;
+
+  @override
+  Future<void> updateSelectedRoute(RouteAlternative? route) async {
+    routeUpdates.add(route);
+  }
 
   @override
   MapCameraState? get currentCamera => camera;
@@ -583,7 +829,9 @@ final class _RecordingMapController implements NadrMapController {
     MapBounds bounds, {
     MapViewportPadding padding = const MapViewportPadding(),
     Duration duration = const Duration(milliseconds: 700),
-  }) async {}
+  }) async {
+    routeFits.add(bounds);
+  }
 
   @override
   Future<void> moveCamera(MapCameraUpdate update) => animateCamera(update);
@@ -633,6 +881,8 @@ final class _CountingAdapter implements HttpClientAdapter {
 
 final class _WidgetRouteRepository implements RouteRepository {
   int calls = 0;
+  GeoCoordinate? lastStart;
+  GeoCoordinate? lastEnd;
 
   @override
   Future<RouteAlternatives> calculateRoute({
@@ -641,6 +891,8 @@ final class _WidgetRouteRepository implements RouteRepository {
     RouteMode mode = RouteMode.normal,
   }) async {
     calls++;
+    lastStart = start;
+    lastEnd = end;
     return RouteAlternatives(
       byMode: {
         RouteMode.normal: RouteAlternative(
@@ -652,4 +904,36 @@ final class _WidgetRouteRepository implements RouteRepository {
       },
     );
   }
+}
+
+final class _MapTilerReplyAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<List<int>>? requestStream,
+    Future<void>? cancelFuture,
+  ) async => ResponseBody.fromString(
+    jsonEncode({
+      'type': 'FeatureCollection',
+      'features': [
+        {
+          'type': 'Feature',
+          'id': 'poi.42',
+          'text': 'Cubbon Park',
+          'place_name': 'Bengaluru, Karnataka',
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [77.59, 12.97],
+          },
+        },
+      ],
+    }),
+    200,
+    headers: {
+      'content-type': ['application/json'],
+    },
+  );
+
+  @override
+  void close({bool force = false}) {}
 }

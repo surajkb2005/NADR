@@ -11,6 +11,8 @@ enum NadrNetworkErrorKind {
   connectionUnavailable,
   timeout,
   invalidResponse,
+  noRoute,
+  fallbackRoute,
   unauthorized,
   validation,
   rateLimited,

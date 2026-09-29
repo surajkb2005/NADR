@@ -125,7 +125,7 @@ void main() {
     expect(result[RouteMode.normal]!.optimization, isNull);
   });
 
-  test('empty alternatives are rejected as invalid route data', () async {
+  test('empty alternatives are reported as no route', () async {
     final adapter = _SingleReplyAdapter({'alternatives': <String, Object>{}});
     final client = NadrRestClient(
       baseUri: Uri.parse('https://example.test'),
@@ -143,7 +143,7 @@ void main() {
         isA<NadrNetworkException>().having(
           (error) => error.kind,
           'kind',
-          NadrNetworkErrorKind.invalidResponse,
+          NadrNetworkErrorKind.noRoute,
         ),
       ),
     );
@@ -178,6 +178,138 @@ void main() {
       );
     }
   });
+
+  test('valid alternatives survive malformed and fallback siblings', () async {
+    final result = await _response({
+      'alternatives': {
+        'normal': {
+          'path': [
+            [1, 2],
+            [91, 3],
+          ],
+        },
+        'safe': {
+          'path': [
+            [1, 2],
+            [2, 3],
+            [3, 4],
+          ],
+          'optimization': 'safe_road',
+        },
+        'drifted': {
+          'path': [
+            [1],
+            [2, 3],
+          ],
+        },
+        'imu': {
+          'path': [
+            [1, 2],
+            [3, 4],
+          ],
+          'optimization': 'fallback',
+        },
+      },
+    });
+    expect(result.byMode.keys, {RouteMode.safe});
+    expect(result[RouteMode.safe]!.path, [
+      const GeoCoordinate(latitude: 1, longitude: 2),
+      const GeoCoordinate(latitude: 2, longitude: 3),
+      const GeoCoordinate(latitude: 3, longitude: 4),
+    ]);
+  });
+
+  test(
+    'empty, one-point, repeated, and invalid paths cannot be routes',
+    () async {
+      for (final path in [
+        <Object>[],
+        <Object>[
+          [1, 2],
+        ],
+        <Object>[
+          [1, 2],
+          [1, 2],
+        ],
+        <Object>[
+          [1, 181],
+          [2, 3],
+        ],
+        <Object>[
+          [1, 'bad'],
+          [2, 3],
+        ],
+        <Object>[
+          [1, null],
+          [2, 3],
+        ],
+      ]) {
+        await expectLater(
+          _response({
+            'alternatives': {
+              'normal': {'path': path},
+            },
+          }),
+          throwsA(
+            isA<NadrNetworkException>().having(
+              (error) => error.kind,
+              'kind',
+              NadrNetworkErrorKind.invalidResponse,
+            ),
+          ),
+        );
+      }
+    },
+  );
+
+  test(
+    'backend straight-line fallback is not accepted as a road route',
+    () async {
+      await expectLater(
+        _response({
+          'alternatives': {
+            'normal': {
+              'path': [
+                [1, 2],
+                [3, 4],
+              ],
+              'optimization': 'fallback',
+            },
+            'safe': {
+              'path': [
+                [1, 2],
+                [3, 4],
+              ],
+              'optimization': 'fallback',
+            },
+          },
+        }),
+        throwsA(
+          isA<NadrNetworkException>().having(
+            (error) => error.kind,
+            'kind',
+            NadrNetworkErrorKind.fallbackRoute,
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Future<RouteAlternatives> _response(Object response) async {
+  final client = NadrRestClient(
+    baseUri: Uri.parse('https://example.test'),
+    cookieJar: CookieJar(),
+    dio: Dio()..httpClientAdapter = _SingleReplyAdapter(response),
+  );
+  try {
+    return await RestRouteRepository(client).calculateRoute(
+      start: const GeoCoordinate(latitude: 1, longitude: 2),
+      end: const GeoCoordinate(latitude: 3, longitude: 4),
+    );
+  } finally {
+    client.dispose();
+  }
 }
 
 Map<String, Object> _variant(String optimization, {double? riskWeight}) => {

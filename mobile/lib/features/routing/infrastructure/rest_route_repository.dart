@@ -31,14 +31,39 @@ final class RestRouteRepository implements RouteRepository {
 
   static RouteAlternatives _toDomain(ApiRouteResponse response) {
     final alternatives = <RouteMode, RouteAlternative>{};
+    var invalidAlternatives = response.invalidAlternatives;
+    var fallbackAlternatives = 0;
     for (final entry in response.alternatives.entries) {
       final mode = _responseMode(entry.key);
       if (mode == null) continue;
-      alternatives[mode] = _alternative(mode, entry.value);
+      try {
+        final alternative = _alternative(mode, entry.value);
+        if (alternative.isBackendFallback) {
+          fallbackAlternatives++;
+        } else if (alternative.hasUsableGeometry) {
+          alternatives[mode] = alternative;
+        } else {
+          invalidAlternatives++;
+        }
+      } on NadrNetworkException {
+        invalidAlternatives++;
+      }
     }
     if (alternatives.isEmpty) {
+      if (fallbackAlternatives > 0 && invalidAlternatives == 0) {
+        throw const NadrNetworkException(
+          NadrNetworkErrorKind.fallbackRoute,
+          'Backend returned only straight-line fallback routes.',
+        );
+      }
+      if (invalidAlternatives > 0) {
+        throw const NadrNetworkException(
+          NadrNetworkErrorKind.invalidResponse,
+          'Backend returned unusable route geometry.',
+        );
+      }
       throw const NadrNetworkException(
-        NadrNetworkErrorKind.invalidResponse,
+        NadrNetworkErrorKind.noRoute,
         'Backend returned no route alternatives.',
       );
     }
@@ -88,7 +113,9 @@ final class RestRouteRepository implements RouteRepository {
   static GeoCoordinate _coordinate(List<double> pair) {
     final latitude = pair[0];
     final longitude = pair[1];
-    if (latitude < -90 ||
+    if (!latitude.isFinite ||
+        !longitude.isFinite ||
+        latitude < -90 ||
         latitude > 90 ||
         longitude < -180 ||
         longitude > 180) {

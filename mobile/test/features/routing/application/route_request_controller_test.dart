@@ -20,7 +20,10 @@ void main() {
     addTearDown(container.dispose);
     final requester = container.read(routeRequestControllerProvider.notifier);
 
-    expect(await requester.requestRoute(), RouteRequestOutcome.missingStart);
+    expect(
+      await requester.requestRoute(),
+      RouteRequestOutcome.missingDestination,
+    );
     _setGps(container, const GeoCoordinate(latitude: 1, longitude: 2));
     expect(
       await requester.requestRoute(),
@@ -99,13 +102,13 @@ void main() {
       );
       completer.complete(_alternatives());
 
-      expect(await request, RouteRequestOutcome.success);
+      expect(await request, RouteRequestOutcome.cancelled);
       expect(
-        repository.calls.single.start,
+        repository.calls.first.start,
         const GeoCoordinate(latitude: 12.1, longitude: 77.2),
       );
       expect(
-        repository.calls.single.end,
+        repository.calls.first.end,
         const GeoCoordinate(latitude: 12.3, longitude: 77.4),
       );
     },
@@ -126,6 +129,44 @@ void main() {
     expect(await first, RouteRequestOutcome.success);
     expect(repository.calls, hasLength(1));
   });
+
+  test(
+    'fallback from repository leaves destination but no selected route',
+    () async {
+      final repository = _RecordingRouteRepository(
+        result: Future.value(
+          RouteAlternatives(
+            byMode: {
+              RouteMode.normal: RouteAlternative(
+                mode: RouteMode.normal,
+                path: const [
+                  GeoCoordinate(latitude: 12.1, longitude: 77.2),
+                  GeoCoordinate(latitude: 12.3, longitude: 77.4),
+                ],
+                metrics: const RouteMetrics(),
+                optimization: 'fallback',
+              ),
+            },
+          ),
+        ),
+      );
+      final container = _readyContainer(repository);
+      addTearDown(container.dispose);
+      final outcome = await container
+          .read(routeRequestControllerProvider.notifier)
+          .requestRoute();
+      expect(outcome, RouteRequestOutcome.failed);
+      final session = container.read(navigationSessionProvider);
+      expect(session.destination, isNotNull);
+      expect(session.selectedRoute, isNull);
+      expect(session.routeAlternatives.isEmpty, isTrue);
+      expect(
+        container.read(routeRequestControllerProvider).phase,
+        RouteRequestPhase.failure,
+      );
+      expect(session.errorMessage, contains('straight-line fallback'));
+    },
+  );
 
   test(
     'success stores all alternatives and compact status in session',
