@@ -23,6 +23,7 @@ import 'package:nadr_mobile/features/map/presentation/widgets/navigation_mode_co
 import 'package:nadr_mobile/features/location/application/location_coordinator.dart';
 import 'package:nadr_mobile/features/navigation/application/navigation_session_controller.dart';
 import 'package:nadr_mobile/features/routing/domain/route_models.dart';
+import 'package:nadr_mobile/features/routing/presentation/route_info_card.dart';
 import 'package:nadr_mobile/features/routing/domain/route_repository.dart';
 import 'package:nadr_mobile/features/routing/infrastructure/rest_route_repository.dart';
 import 'package:nadr_mobile/shared/widgets/bottom_sheet_surface.dart';
@@ -138,7 +139,10 @@ void main() {
     await tester.pump();
 
     expect(find.byType(NavigationModeControl), findsOneWidget);
-    expect(find.text('Location active'), findsOneWidget);
+    expect(find.text('GPS mode'), findsNothing);
+    expect(find.text('Heading unavailable'), findsNothing);
+    expect(find.text('No GPS fix'), findsOneWidget);
+    expect(find.byKey(const ValueKey('location-status-indicator')), findsNothing);
     expect(
       container.read(navigationSessionProvider).navigationMode,
       domain.NavigationMode.gps,
@@ -174,12 +178,8 @@ void main() {
   ) async {
     await tester.pumpWidget(testApp());
 
-    expect(find.text('NADR Navigation'), findsOneWidget);
-    expect(find.text('No destination selected'), findsOneWidget);
-    expect(
-      find.text('Select a destination to view route information.'),
-      findsOneWidget,
-    );
+    expect(find.text('No destination selected'), findsNothing);
+    expect(find.byKey(const ValueKey('get-route-button')), findsNothing);
     expect(find.byKey(const ValueKey('navigation-info-sheet')), findsOneWidget);
     expect(find.byKey(const ValueKey('recenter-button')), findsOneWidget);
 
@@ -201,6 +201,29 @@ void main() {
         .getSize(find.byType(BottomSheetSurface))
         .height;
     expect(expandedSheetHeight, greaterThan(initialSheetHeight));
+  });
+
+  testWidgets('route waiting owns the missing-position message', (
+    tester,
+  ) async {
+    final repository = _WidgetRouteRepository();
+    final configured = _configuredContainer(routeRepository: repository);
+    addTearDown(configured.dispose);
+    configured
+        .read(navigationSessionProvider.notifier)
+        .setDestination(
+          const Destination(
+            coordinate: GeoCoordinate(latitude: 12.3, longitude: 77.4),
+          ),
+        );
+
+    await tester.pumpWidget(_configuredApp(configured));
+    await tester.pumpAndSettle();
+
+    expect(repository.calls, 0);
+    expect(find.text('Waiting for your current position.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('nav-issue-banner')), findsNothing);
+    expect(find.text('No GPS fix'), findsNothing);
   });
 
   testWidgets('no current-location marker is introduced', (tester) async {
@@ -241,6 +264,37 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(NavigationModeControl), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('search suggestions and map controls fit with keyboard open', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+
+    final configured = _configuredContainer(
+      placeSearchRepository: _WidgetSearchRepository(),
+    );
+    addTearDown(configured.dispose);
+    await tester.pumpWidget(_configuredApp(configured));
+    await tester.tap(find.byKey(const ValueKey('destination-search-field')));
+    await tester.enterText(
+      find.byKey(const ValueKey('destination-search-field')),
+      'Central Park',
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('destination-search-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('destination-suggestions')), findsOneWidget);
+    expect(find.byType(NavigationModeControl), findsOneWidget);
+    expect(find.byKey(const ValueKey('navigation-info-sheet')), findsOneWidget);
+    expect(find.byKey(const ValueKey('recenter-button')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -454,6 +508,8 @@ void main() {
       const GeoCoordinate(latitude: 13, longitude: 78),
     );
     expect(adapter.requests, 1);
+    expect(find.byKey(const ValueKey('route-info-retry')), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
   });
 
   testWidgets('automatic route request updates selected map geometry', (
@@ -485,11 +541,22 @@ void main() {
     expect(repository.calls, 1);
     await tester.drag(find.byType(BottomSheetSurface), const Offset(0, -220));
     await tester.pumpAndSettle();
+    final expandedSheetRect = tester.getRect(find.byType(BottomSheetSurface));
+    expect(
+      tester.getRect(find.byType(NavigationModeControl)).bottom,
+      lessThan(expandedSheetRect.top),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('recenter-button'))).bottom,
+      lessThan(expandedSheetRect.top),
+    );
     expect(
       configured.read(navigationSessionProvider).routeAlternatives.isNotEmpty,
       isTrue,
     );
-    expect(find.text('Route data received (1 alternatives).'), findsOneWidget);
+    expect(find.byType(RouteInfoCard), findsOneWidget);
+    expect(find.text('1.0 km'), findsOneWidget);
+    expect(find.text('Route data received (1 alternatives).'), findsNothing);
     expect(
       mapController.routeUpdates.last,
       same(configured.read(navigationSessionProvider).selectedRoute),
@@ -514,12 +581,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(mapController.routeUpdates.last, same(safe));
     expect(mapController.routeFits, hasLength(2));
+    expect(find.text('Safe'), findsOneWidget);
+    expect(find.text('Route profile'), findsOneWidget);
     final updateCount = mapController.routeUpdates.length;
     session.setNavigationMode(domain.NavigationMode.imu);
     session.setNavigationMode(domain.NavigationMode.gps);
     await tester.pumpAndSettle();
     expect(mapController.routeUpdates.length, updateCount);
     expect(mapController.routeFits, hasLength(2));
+    expect(find.byType(RouteInfoCard), findsOneWidget);
+    expect(find.text('Route profile'), findsOneWidget);
+    expect(find.text('Safe'), findsOneWidget);
     session.clearDestination();
     await tester.pumpAndSettle();
     expect(mapController.routeUpdates.last, isNull);
@@ -554,7 +626,7 @@ void main() {
       );
       expect(destination?.displayLabel, 'MG Road Station');
       expect(marker.destinationUpdates.last, destination);
-      expect(find.text('MG Road Station'), findsOneWidget);
+      expect(find.text('MG Road Station'), findsNWidgets(2));
     },
   );
 }

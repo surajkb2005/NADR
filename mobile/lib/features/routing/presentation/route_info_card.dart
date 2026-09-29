@@ -99,7 +99,7 @@ class RouteInfoCard extends StatelessWidget {
     switch (requestState.phase) {
       case RouteRequestPhase.idle:
         return Text(
-          'Request a route to see details here.',
+          'Route details will appear here.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -115,7 +115,7 @@ class RouteInfoCard extends StatelessWidget {
 
       case RouteRequestPhase.loading:
         return Text(
-          'Requesting route from the backend…',
+          'Calculating route…',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -164,7 +164,9 @@ class RouteInfoCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${selectedRoute!.mode.name} route',
+              alternatives != null && alternatives!.byMode.length > 1
+                  ? 'Route profile'
+                  : '${_profileLabel(selectedRoute!.mode)} profile',
               style: theme.textTheme.labelLarge,
             ),
             if (alternatives != null && alternatives!.byMode.length > 1) ...[
@@ -175,7 +177,7 @@ class RouteInfoCard extends StatelessWidget {
                 children: [
                   for (final mode in alternatives!.byMode.keys)
                     ChoiceChip(
-                      label: Text(mode.name),
+                      label: Text(_profileLabel(mode)),
                       selected: selectedRoute!.mode == mode,
                       onSelected: onSelectRoute == null
                           ? null
@@ -260,6 +262,13 @@ class RouteInfoCard extends StatelessWidget {
     RiskZone.low => 'Low risk',
     RiskZone.medium => 'Medium risk',
     RiskZone.high => 'High risk',
+  };
+
+  static String _profileLabel(RouteMode mode) => switch (mode) {
+    RouteMode.normal => 'Normal',
+    RouteMode.safe => 'Safe',
+    RouteMode.drifted => 'Drifted',
+    RouteMode.imu => 'IMU',
   };
 
   static Color _riskColor(ThemeData theme, RiskZone zone) => switch (zone) {

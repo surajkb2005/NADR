@@ -31,7 +31,7 @@ void main() {
     );
 
     expect(find.text('Idle'), findsOneWidget);
-    expect(find.text('Request a route to see details here.'), findsOneWidget);
+    expect(find.text('Route details will appear here.'), findsOneWidget);
   });
 
   testWidgets('loading phase shows loading message', (tester) async {
@@ -44,7 +44,7 @@ void main() {
     );
 
     expect(find.text('Loading'), findsOneWidget);
-    expect(find.text('Requesting route from the backend…'), findsOneWidget);
+    expect(find.text('Calculating route…'), findsOneWidget);
   });
 
   testWidgets('failure phase shows message and retry when provided', (
@@ -196,9 +196,9 @@ void main() {
         ),
       ),
     );
-    expect(find.text('normal route'), findsOneWidget);
-    expect(find.text('normal'), findsOneWidget);
-    await tester.tap(find.text('safe'));
+    expect(find.text('Route profile'), findsOneWidget);
+    expect(find.text('Normal'), findsOneWidget);
+    await tester.tap(find.text('Safe'));
     expect(selected, RouteMode.safe);
   });
 

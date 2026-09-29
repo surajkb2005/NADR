@@ -81,9 +81,24 @@ final class NavigationStatusData {
 ///
 /// Purely presentational: no sensor polling, no timers, no new controller.
 class NavigationStatusPanel extends StatelessWidget {
-  const NavigationStatusPanel({required this.data, super.key});
+  const NavigationStatusPanel({
+    required this.data,
+    this.showModeChip = true,
+    this.showGpsStatus = true,
+    this.showTrackingChip = true,
+    this.showImuStatus = true,
+    this.showHeading = true,
+    this.showUnavailableHeading = true,
+    super.key,
+  });
 
   final NavigationStatusData data;
+  final bool showModeChip;
+  final bool showGpsStatus;
+  final bool showTrackingChip;
+  final bool showImuStatus;
+  final bool showHeading;
+  final bool showUnavailableHeading;
 
   @override
   Widget build(BuildContext context) {
@@ -96,14 +111,20 @@ class NavigationStatusPanel extends StatelessWidget {
         spacing: 8,
         runSpacing: 8,
         children: [
-          _modeChip(colors),
-          if (data.mode == NavigationMode.gps)
+          if (showModeChip) _modeChip(colors),
+          if (data.mode == NavigationMode.gps && showGpsStatus)
             _gpsAccuracyChip(colors)
-          else
+          else if (data.mode == NavigationMode.imu && showImuStatus)
             _imuPhaseChip(colors),
-          if (data.mode == NavigationMode.gps && data.locationState != null)
+          if (showTrackingChip &&
+              data.mode == NavigationMode.gps &&
+              data.locationState != null)
             _trackingChip(colors),
-          _headingChip(colors),
+          if (showHeading &&
+              (data.mode == NavigationMode.imu ||
+                  data.headingDegrees != null) &&
+              (data.headingDegrees != null || showUnavailableHeading))
+            _headingChip(colors),
         ],
       ),
     );

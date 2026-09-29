@@ -37,7 +37,7 @@ void main() {
     expect(find.text('45°'), findsOneWidget);
   });
 
-  testWidgets('GPS mode with no fix shows "No GPS fix", no heading', (
+  testWidgets('GPS mode with no fix does not show a heading warning', (
     tester,
   ) async {
     final session = NavigationSessionState(navigationMode: NavigationMode.gps);
@@ -46,7 +46,7 @@ void main() {
     await tester.pumpWidget(_wrap(NavigationStatusPanel(data: data)));
 
     expect(find.text('No GPS fix'), findsOneWidget);
-    expect(find.text('Heading unavailable'), findsOneWidget);
+    expect(find.text('Heading unavailable'), findsNothing);
   });
 
   testWidgets(

@@ -55,6 +55,33 @@ void main() {
     expect(issue?.severity, IssueSeverity.info);
   });
 
+  test('route waiting hides duplicate GPS acquisition issue', () {
+    final issue = NavigationIssueResolver.resolveStatusIssue(
+      mode: domain.NavigationMode.gps,
+      location: const DeviceLocationState(
+        permissionStatus: LocationPermissionStatus.granted,
+        trackingStatus: LocationTrackingStatus.acquiring,
+      ),
+      includeGpsWaiting: false,
+    );
+
+    expect(issue, isNull);
+  });
+
+  test('route waiting still surfaces GPS tracking error', () {
+    final issue = NavigationIssueResolver.resolveStatusIssue(
+      mode: domain.NavigationMode.gps,
+      location: const DeviceLocationState(
+        permissionStatus: LocationPermissionStatus.granted,
+        trackingStatus: LocationTrackingStatus.error,
+      ),
+      includeGpsWaiting: false,
+    );
+
+    expect(issue?.message, 'GPS is unavailable right now.');
+    expect(issue?.severity, IssueSeverity.error);
+  });
+
   test('IMU headingUnavailable is a warning, not a fatal error', () {
     final issue = NavigationIssueResolver.resolve(
       mode: domain.NavigationMode.imu,

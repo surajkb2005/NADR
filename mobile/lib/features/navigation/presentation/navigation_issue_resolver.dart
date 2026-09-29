@@ -23,6 +23,94 @@ abstract final class NavigationIssueResolver {
     void Function()? onOpenLocationSettings,
     void Function()? onRetryRoute,
   }) {
+    final statusIssue = resolveStatusIssue(
+      mode: mode,
+      location: location,
+      imu: imu,
+      onRequestLocationPermission: onRequestLocationPermission,
+      onOpenLocationSettings: onOpenLocationSettings,
+    );
+    if (statusIssue != null) return statusIssue;
+
+    if (destination == null) {
+      return const NavigationIssue(
+        message: 'No destination selected yet.',
+        severity: IssueSeverity.info,
+      );
+    }
+
+    if (routeRequest.phase == RouteRequestPhase.failure) {
+      return NavigationIssue(
+        message: routeRequest.message ?? 'Unable to get a route.',
+        severity: IssueSeverity.error,
+        actionLabel: onRetryRoute != null ? 'Retry' : null,
+        onAction: onRetryRoute,
+      );
+    }
+
+    return null;
+  }
+
+  /// Resolves only location and IMU status issues for surfaces that already
+  /// present destination and route state elsewhere.
+  static NavigationIssue? resolveStatusIssue({
+    required domain.NavigationMode mode,
+    required DeviceLocationState location,
+    ImuNavigationState? imu,
+    bool includeGpsWaiting = true,
+    void Function()? onRequestLocationPermission,
+    void Function()? onOpenLocationSettings,
+  }) {
+    final locationIssue = resolveLocationIssue(
+      mode: mode,
+      location: location,
+      includeGpsWaiting: includeGpsWaiting,
+      onRequestLocationPermission: onRequestLocationPermission,
+      onOpenLocationSettings: onOpenLocationSettings,
+    );
+    if (locationIssue != null) return locationIssue;
+
+    if (mode == domain.NavigationMode.imu && imu != null) {
+      final imuIssue = switch (imu.phase) {
+        ImuNavigationPhase.waitingForGps => const NavigationIssue(
+          message: 'Waiting for a GPS fix before IMU navigation.',
+          severity: IssueSeverity.info,
+        ),
+        ImuNavigationPhase.starting => const NavigationIssue(
+          message: 'Starting IMU sensors…',
+          severity: IssueSeverity.info,
+        ),
+        ImuNavigationPhase.calibrating => const NavigationIssue(
+          message: 'Calibrating IMU heading…',
+          severity: IssueSeverity.info,
+        ),
+        ImuNavigationPhase.unavailable => const NavigationIssue(
+          message: 'IMU sensors are unavailable on this device.',
+          severity: IssueSeverity.error,
+        ),
+        ImuNavigationPhase.headingUnavailable => const NavigationIssue(
+          message: 'IMU heading is unavailable. Positions may not update.',
+          severity: IssueSeverity.warning,
+        ),
+        ImuNavigationPhase.error => const NavigationIssue(
+          message: 'IMU sensors reported an error.',
+          severity: IssueSeverity.error,
+        ),
+        _ => null,
+      };
+      if (imuIssue != null) return imuIssue;
+    }
+    return null;
+  }
+
+  /// The actionable location issue subset used by the compact map sheet.
+  static NavigationIssue? resolveLocationIssue({
+    required domain.NavigationMode mode,
+    required DeviceLocationState location,
+    bool includeGpsWaiting = true,
+    void Function()? onRequestLocationPermission,
+    void Function()? onOpenLocationSettings,
+  }) {
     if (location.serviceStatus == LocationServiceStatus.disabled) {
       return NavigationIssue(
         message: 'Location services are turned off.',
@@ -62,59 +150,13 @@ abstract final class NavigationIssueResolver {
       );
     }
 
-    if (mode == domain.NavigationMode.gps &&
+    if (includeGpsWaiting &&
+        mode == domain.NavigationMode.gps &&
         (location.trackingStatus == LocationTrackingStatus.starting ||
             location.trackingStatus == LocationTrackingStatus.acquiring)) {
       return const NavigationIssue(
         message: 'Waiting for a GPS fix…',
         severity: IssueSeverity.info,
-      );
-    }
-
-    if (mode == domain.NavigationMode.imu && imu != null) {
-      final imuIssue = switch (imu.phase) {
-        ImuNavigationPhase.waitingForGps => const NavigationIssue(
-          message: 'Waiting for a GPS fix before IMU navigation.',
-          severity: IssueSeverity.info,
-        ),
-        ImuNavigationPhase.starting => const NavigationIssue(
-          message: 'Starting IMU sensors…',
-          severity: IssueSeverity.info,
-        ),
-        ImuNavigationPhase.calibrating => const NavigationIssue(
-          message: 'Calibrating IMU heading…',
-          severity: IssueSeverity.info,
-        ),
-        ImuNavigationPhase.unavailable => const NavigationIssue(
-          message: 'IMU sensors are unavailable on this device.',
-          severity: IssueSeverity.error,
-        ),
-        ImuNavigationPhase.headingUnavailable => const NavigationIssue(
-          message: 'IMU heading is unavailable. Positions may not update.',
-          severity: IssueSeverity.warning,
-        ),
-        ImuNavigationPhase.error => const NavigationIssue(
-          message: 'IMU sensors reported an error.',
-          severity: IssueSeverity.error,
-        ),
-        _ => null,
-      };
-      if (imuIssue != null) return imuIssue;
-    }
-
-    if (destination == null) {
-      return const NavigationIssue(
-        message: 'No destination selected yet.',
-        severity: IssueSeverity.info,
-      );
-    }
-
-    if (routeRequest.phase == RouteRequestPhase.failure) {
-      return NavigationIssue(
-        message: routeRequest.message ?? 'Unable to get a route.',
-        severity: IssueSeverity.error,
-        actionLabel: onRetryRoute != null ? 'Retry' : null,
-        onAction: onRetryRoute,
       );
     }
 

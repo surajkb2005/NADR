@@ -1,30 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:nadr_mobile/core/geo/navigation_mode.dart' as domain;
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
+import 'package:nadr_mobile/features/destination/presentation/destination_info_card.dart';
+import 'package:nadr_mobile/features/navigation/presentation/navigation_status_panel.dart';
 import 'package:nadr_mobile/features/routing/application/route_request_controller.dart';
+import 'package:nadr_mobile/features/routing/domain/route_models.dart';
+import 'package:nadr_mobile/features/routing/presentation/route_info_card.dart';
 import 'package:nadr_mobile/shared/widgets/bottom_sheet_surface.dart';
-import 'package:nadr_mobile/shared/widgets/compact_status_chip.dart';
+import 'package:nadr_mobile/shared/widgets/dedup_issue_banner.dart';
 
+/// Compact, scrollable route context. Destination and route state are passed
+/// from the canonical navigation session; this widget owns no duplicate state.
 class NavigationInfoSheet extends StatelessWidget {
   const NavigationInfoSheet({
-    required this.mode,
-    required this.canRequestRoute,
+    required this.status,
     required this.routeRequestState,
-    required this.onRequestRoute,
+    required this.onRetryRoute,
     this.destination,
+    this.selectedRoute,
+    this.routeAlternatives,
+    this.issue,
+    this.onSelectRoute,
+    this.controller,
     super.key,
   });
 
-  final domain.NavigationMode mode;
+  final NavigationStatusData status;
   final Destination? destination;
-  final bool canRequestRoute;
   final RouteRequestState routeRequestState;
-  final VoidCallback onRequestRoute;
+  final RouteAlternative? selectedRoute;
+  final RouteAlternatives? routeAlternatives;
+  final NavigationIssue? issue;
+  final ValueChanged<RouteMode>? onSelectRoute;
+  final VoidCallback onRetryRoute;
+  final DraggableScrollableController? controller;
 
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
       key: const ValueKey('navigation-info-sheet'),
+      controller: controller,
       initialChildSize: 0.20,
       minChildSize: 0.16,
       maxChildSize: 0.48,
@@ -33,11 +47,14 @@ class NavigationInfoSheet extends StatelessWidget {
         return BottomSheetSurface(
           scrollController: scrollController,
           child: _NavigationInfoContent(
-            mode: mode,
+            status: status,
             destination: destination,
-            canRequestRoute: canRequestRoute,
             routeRequestState: routeRequestState,
-            onRequestRoute: onRequestRoute,
+            selectedRoute: selectedRoute,
+            routeAlternatives: routeAlternatives,
+            issue: issue,
+            onSelectRoute: onSelectRoute,
+            onRetryRoute: onRetryRoute,
           ),
         );
       },
@@ -47,99 +64,53 @@ class NavigationInfoSheet extends StatelessWidget {
 
 class _NavigationInfoContent extends StatelessWidget {
   const _NavigationInfoContent({
-    required this.mode,
+    required this.status,
     required this.destination,
-    required this.canRequestRoute,
     required this.routeRequestState,
-    required this.onRequestRoute,
+    required this.selectedRoute,
+    required this.routeAlternatives,
+    required this.issue,
+    required this.onSelectRoute,
+    required this.onRetryRoute,
   });
 
-  final domain.NavigationMode mode;
+  final NavigationStatusData status;
   final Destination? destination;
-  final bool canRequestRoute;
   final RouteRequestState routeRequestState;
-  final VoidCallback onRequestRoute;
+  final RouteAlternative? selectedRoute;
+  final RouteAlternatives? routeAlternatives;
+  final NavigationIssue? issue;
+  final ValueChanged<RouteMode>? onSelectRoute;
+  final VoidCallback onRetryRoute;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isGps = mode == domain.NavigationMode.gps;
-    final statusColor = isGps
-        ? theme.colorScheme.primary
-        : theme.brightness == Brightness.dark
-        ? const Color(0xFFD0BCFF)
-        : const Color(0xFF6F42C1);
+    final routeIsWaiting =
+        routeRequestState.phase == RouteRequestPhase.waitingForPosition;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'NADR Navigation',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            CompactStatusChip(
-              label: isGps ? 'GPS' : 'IMU',
-              icon: isGps ? Icons.location_on_outlined : Icons.explore_outlined,
-              color: statusColor,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          destination == null ? 'No destination selected' : 'Destination set',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+        if (issue == null && !routeIsWaiting)
+          NavigationStatusPanel(
+            data: status,
+            showModeChip: false,
+            showTrackingChip: false,
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          destination == null
-              ? 'Select a destination to view route information.'
-              : '${destination!.coordinate.latitude}, '
-                    '${destination!.coordinate.longitude}',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            key: const ValueKey('get-route-button'),
-            onPressed:
-                canRequestRoute &&
-                    routeRequestState.phase != RouteRequestPhase.loading
-                ? onRequestRoute
-                : null,
-            icon: routeRequestState.phase == RouteRequestPhase.loading
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.route_outlined),
-            label: Text(
-              routeRequestState.phase == RouteRequestPhase.loading
-                  ? 'Getting route…'
-                  : 'Get route',
-            ),
-          ),
-        ),
-        if (routeRequestState.message case final message?) ...[
-          const SizedBox(height: 8),
-          Text(
-            message,
-            key: const ValueKey('route-request-status'),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: routeRequestState.phase == RouteRequestPhase.failure
-                  ? theme.colorScheme.error
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
+        if (issue case final currentIssue?) ...[
+          const SizedBox(height: 12),
+          DedupIssueBanner(issue: currentIssue),
+        ],
+        if (destination case final currentDestination?) ...[
+          const SizedBox(height: 12),
+          DestinationInfoCard(destination: currentDestination),
+          const SizedBox(height: 12),
+          RouteInfoCard(
+            requestState: routeRequestState,
+            selectedRoute: selectedRoute,
+            alternatives: routeAlternatives,
+            onSelectRoute: onSelectRoute,
+            onRetry: onRetryRoute,
           ),
         ],
       ],

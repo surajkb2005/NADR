@@ -5,14 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:nadr_mobile/app/bootstrap/environment.dart';
-import 'package:nadr_mobile/core/geo/navigation_mode.dart' as domain;
 import 'package:nadr_mobile/core/geo/geo_coordinate.dart';
 import 'package:nadr_mobile/core/network/backend_connectivity_panel.dart';
 import 'package:nadr_mobile/features/destination/domain/destination.dart';
 import 'package:nadr_mobile/features/destination/presentation/destination_selection_panel.dart';
 import 'package:nadr_mobile/features/destination/presentation/destination_search_surface.dart';
 import 'package:nadr_mobile/features/imu/application/imu_navigation_coordinator.dart';
-import 'package:nadr_mobile/features/imu/application/imu_navigation_state.dart';
 import 'package:nadr_mobile/features/map/domain/map_defaults.dart';
 import 'package:nadr_mobile/features/map/domain/nadr_map_controller.dart';
 import 'package:nadr_mobile/features/map/presentation/map_camera_follow_controller.dart';
@@ -22,12 +20,12 @@ import 'package:nadr_mobile/features/map/presentation/widgets/maplibre_map_surfa
 import 'package:nadr_mobile/features/map/presentation/widgets/navigation_info_sheet.dart';
 import 'package:nadr_mobile/features/map/presentation/widgets/navigation_mode_control.dart';
 import 'package:nadr_mobile/features/location/application/location_coordinator.dart';
-import 'package:nadr_mobile/features/location/presentation/location_status_indicator.dart';
 import 'package:nadr_mobile/features/navigation/application/navigation_session_controller.dart';
+import 'package:nadr_mobile/features/navigation/presentation/navigation_issue_resolver.dart';
+import 'package:nadr_mobile/features/navigation/presentation/navigation_status_panel.dart';
 import 'package:nadr_mobile/features/routing/application/route_request_controller.dart';
 import 'package:nadr_mobile/features/routing/domain/route_models.dart';
 import 'package:nadr_mobile/shared/widgets/app_error_message.dart';
-import 'package:nadr_mobile/shared/widgets/compact_status_chip.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -195,15 +193,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen(
-      navigationSessionProvider.select((state) => state.errorMessage),
-      (previous, next) {
-        if (next != null && next != previous) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(AppErrorSnackBar.create(next));
-        }
-      },
-    );
-    ref.listen(
       navigationSessionProvider.select(
         (state) => (state.displayedPosition, state.navigationMode),
       ),
@@ -347,7 +336,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 }
 
-class _NavigationOverlays extends ConsumerWidget {
+class _NavigationOverlays extends ConsumerStatefulWidget {
   const _NavigationOverlays({
     required this.canRecenter,
     required this.isFollowing,
@@ -359,61 +348,89 @@ class _NavigationOverlays extends ConsumerWidget {
   final VoidCallback onRecenter;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_NavigationOverlays> createState() =>
+      _NavigationOverlaysState();
+}
+
+class _NavigationOverlaysState extends ConsumerState<_NavigationOverlays> {
+  late final DraggableScrollableController _sheetController;
+
+  @override
+  void initState() {
+    super.initState();
+    _sheetController = DraggableScrollableController()
+      ..addListener(_handleSheetExtentChanged);
+  }
+
+  @override
+  void dispose() {
+    _sheetController
+      ..removeListener(_handleSheetExtentChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _handleSheetExtentChanged() {
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final session = ref.watch(navigationSessionProvider);
     final mode = session.navigationMode;
     final routeRequestState = ref.watch(routeRequestControllerProvider);
     final locationState = ref.watch(locationCoordinatorProvider);
     final imuState = ref.watch(imuNavigationCoordinatorProvider);
     final destination = session.destination;
+    final status = NavigationStatusData.fromSessionState(
+      session: session,
+      imuState: imuState,
+      locationState: locationState,
+    );
+    final issue = NavigationIssueResolver.resolveStatusIssue(
+      mode: mode,
+      location: locationState,
+      imu: imuState,
+      includeGpsWaiting:
+          routeRequestState.phase != RouteRequestPhase.waitingForPosition,
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final bottomInset = MediaQuery.paddingOf(context).bottom;
-        final controlsBottom = constraints.maxHeight * 0.20 + bottomInset + 14;
+        final sheetExtent = _sheetController.isAttached
+            ? _sheetController.size
+            : 0.20;
+        final controlsBottom =
+            constraints.maxHeight * sheetExtent + bottomInset + 14;
 
         return Stack(
           fit: StackFit.expand,
           children: [
             Positioned(
-              left: 16,
-              bottom: controlsBottom + 68,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (mode == domain.NavigationMode.imu) ...[
-                    CompactStatusChip(
-                      label: imuState.label,
-                      icon: Icons.sensors_rounded,
-                      color: imuState.phase == ImuNavigationPhase.active
-                          ? const Color(0xFF7E57C2)
-                          : imuState.phase == ImuNavigationPhase.calibrating
-                          ? const Color(0xFFF59E0B)
-                          : Theme.of(context).colorScheme.error,
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-                  LocationStatusIndicator(state: locationState),
-                ],
-              ),
-            ),
-            Positioned(
               right: 16,
               bottom: controlsBottom + 68,
               child: Tooltip(
-                message: canRecenter
-                    ? isFollowing
+                message: widget.canRecenter
+                    ? widget.isFollowing
                           ? 'Following current location'
                           : 'Recenter on current location'
                     : 'Waiting for current location',
                 child: FloatingActionButton(
                   key: const ValueKey('recenter-button'),
                   heroTag: 'recenter-button',
-                  onPressed: canRecenter ? onRecenter : null,
+                  onPressed: widget.canRecenter ? widget.onRecenter : null,
                   tooltip: 'Recenter on current location',
                   child: Icon(
-                    isFollowing
+                    widget.isFollowing
                         ? Icons.gps_fixed_rounded
                         : Icons.my_location_rounded,
                   ),
@@ -434,11 +451,17 @@ class _NavigationOverlays extends ConsumerWidget {
               ),
             ),
             NavigationInfoSheet(
-              mode: mode,
+              controller: _sheetController,
+              status: status,
               destination: destination,
-              canRequestRoute: session.hasRouteEndpoints,
               routeRequestState: routeRequestState,
-              onRequestRoute: () => unawaited(
+              selectedRoute: session.selectedRoute,
+              routeAlternatives: session.routeAlternatives,
+              issue: issue,
+              onSelectRoute: ref
+                  .read(navigationSessionProvider.notifier)
+                  .selectRoute,
+              onRetryRoute: () => unawaited(
                 ref
                     .read(routeRequestControllerProvider.notifier)
                     .requestRoute(),

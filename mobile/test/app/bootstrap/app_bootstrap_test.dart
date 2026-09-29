@@ -34,7 +34,9 @@ void main() {
       find.byKey(const ValueKey('destination-search-field')),
       findsOneWidget,
     );
-    expect(find.text('NADR Navigation'), findsOneWidget);
+    expect(find.byKey(const ValueKey('navigation-info-sheet')), findsOneWidget);
+    expect(find.text('GPS mode'), findsNothing);
+    expect(find.text('No GPS fix'), findsOneWidget);
 
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.theme?.useMaterial3, isTrue);
